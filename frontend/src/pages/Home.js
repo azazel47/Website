@@ -116,7 +116,7 @@ const Home = () => {
             <MapIcon className="w-16 h-16 text-cyan-400 mx-auto" strokeWidth={1.5} />
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 bg-clip-text text-transparent" data-testid="main-title">
-            Spatio Downloader
+            Tools Verdok
           </h1>
           <p className="text-base sm:text-lg text-cyan-100/80 max-w-2xl mx-auto" data-testid="subtitle">
             Analisis Koordinat Spasial & Download Shapefile dengan Mudah
@@ -368,7 +368,7 @@ const Home = () => {
 
         {/* Footer */}
         <footer className="mt-12 text-center text-cyan-100/50 text-sm" data-testid="footer">
-          <p>© 2025 Spatio Downloader. Powered by GeoSpatial Technology.</p>
+          <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
         </footer>
       </div>
     </>
