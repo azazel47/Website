@@ -155,3 +155,101 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
             "error": str(e),
             "message": "Error during overlap analysis"
         }
+
+def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) -> dict:
+    """
+    Analisis apakah titik/poligon berada di dalam batas 12 mil laut.
+    Jika overlap, tampilkan atribut 'WP'.
+    """
+    try:
+        joined = gpd.sjoin(gdf, mil12_gdf[["WP", "geometry"]], how="left", predicate="within")
+        overlaps = joined[joined["index_right"].notna()]
+
+        if overlaps.empty:
+            return {"has_overlap": False, "message": "Berada di luar 12 mil laut"}
+
+        wp_list = overlaps["WP"].dropna().unique().tolist()
+        return {
+            "has_overlap": True,
+            "wp_list": wp_list,
+            "message": f"12 mil laut Provinsi {', '.join(wp_list)}"
+        }
+
+    except Exception as e:
+        logger.error(f"Error during 12 mil analysis: {e}")
+        return {"has_overlap": False, "message": f"Error: {str(e)}"}
+
+def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: gpd.GeoDataFrame) -> dict:
+    """
+    Analisis apakah titik/poligon berada di dalam Kawasan Konservasi.
+    Otomatis menyesuaikan kolom (NAMA_KK, KEWENANGAN, DASAR_HKM) jika berbeda nama.
+    """
+    try:
+        # 1️⃣ Samakan CRS
+        if gdf.crs != kawasan_gdf.crs:
+            kawasan_gdf = kawasan_gdf.to_crs(gdf.crs)
+
+        # 2️⃣ Perbaiki geometri invalid
+        kawasan_gdf["geometry"] = kawasan_gdf["geometry"].buffer(0)
+
+        # 3️⃣ Normalisasi nama kolom (handle shapefile berbeda format)
+        rename_map = {
+            "Nama": "NAMA_KK",
+            "NAMOBJ": "NAMA_KK",
+            "NAMA_KAWASAN": "NAMA_KK",
+            "NAMA_KWS": "NAMA_KK",
+            "Kewenangan": "KEWENANGAN",
+            "KEWENANGAN_": "KEWENANGAN",
+            "Dasar_Hukum": "DASAR_HKM",
+            "DASAR_HKM_": "DASAR_HKM",
+            "DASAR_HUKUM": "DASAR_HKM",
+        }
+        kawasan_gdf = kawasan_gdf.rename(columns={k: v for k, v in rename_map.items() if k in kawasan_gdf.columns})
+
+        # 4️⃣ Pastikan kolom utama ada, jika tidak tambahkan default
+        for col in ["NAMA_KK", "KEWENANGAN", "DASAR_HKM"]:
+            if col not in kawasan_gdf.columns:
+                kawasan_gdf[col] = "Tidak diketahui"
+
+        # 5️⃣ Spatial join menggunakan "intersects" agar titik di tepi ikut terdeteksi
+        joined = gpd.sjoin(
+            gdf,
+            kawasan_gdf[["NAMA_KK", "KEWENANGAN", "DASAR_HKM", "geometry"]],
+            how="left",
+            predicate="intersects"
+        )
+
+        overlaps = joined[joined["index_right"].notna()]
+        if overlaps.empty:
+            return {"has_overlap": False, "message": "Tidak berada di dalam Kawasan Konservasi"}
+
+        # 6️⃣ Bangun daftar detail overlap
+        overlap_details = []
+        nama_list = []
+        for _, row in overlaps.iterrows():
+            detail = {
+                "id": row.get("id", "Unknown"),
+                "NAMA_KK": str(row.get("NAMA_KK", "N/A")),
+                "KEWENANGAN": str(row.get("KEWENANGAN", "N/A")),
+                "DASAR_HKM": str(row.get("DASAR_HKM", "N/A")),
+            }
+            overlap_details.append(detail)
+            nama_list.append(detail["NAMA_KK"])
+
+        # Hilangkan duplikat nama
+        nama_list = sorted(list(set(nama_list)))
+
+        # 7️⃣ Buat pesan ringkasan
+        message = f"Berada di Kawasan Konservasi: {', '.join(nama_list)}"
+
+        return {
+            "has_overlap": True,
+            "overlap_count": len(overlaps),
+            "nama_kawasan": nama_list,
+            "overlap_details": overlap_details,
+            "message": message
+        }
+
+    except Exception as e:
+        logger.error(f"Error during Kawasan Konservasi analysis: {e}", exc_info=True)
+        return {"has_overlap": False, "message": f"Error: {str(e)}"}

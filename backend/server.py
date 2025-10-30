@@ -19,11 +19,16 @@ import json
 # Import utility functions
 from utils.coordinate_converter import dms_to_dd
 from utils.kkprl_loader import load_kkprl_json, get_kkprl_metadata
+from utils.mil12_loader import load_12mil_shapefile
+from utils.kawasan_loader import load_kawasan_konservasi
+
 from utils.spatial_analysis import (
     create_point_geodataframe,
     create_polygon_geodataframe,
     analyze_point_overlap,
-    analyze_polygon_overlap
+    analyze_polygon_overlap,
+    analyze_overlap_12mil,
+    analyze_overlap_kawasan,
 )
 
 ROOT_DIR = Path(__file__).parent
@@ -95,7 +100,7 @@ async def get_status_checks():
 async def kkprl_metadata():
     """Get metadata about KKPRL data"""
     return get_kkprl_metadata()
-
+    
 @api_router.post("/analyze-coordinates")
 async def analyze_coordinates(
     file: UploadFile = File(...),
@@ -116,9 +121,8 @@ async def analyze_coordinates(
         
         # Coordinate conversion based on format_type
         if format_type == "OSS-UTM":
-            # Check required columns
             required_cols = ['bujur_derajat', 'bujur_menit', 'bujur_detik', 'BT_BB',
-                           'lintang_derajat', 'lintang_menit', 'lintang_detik', 'LU_LS']
+                             'lintang_derajat', 'lintang_menit', 'lintang_detik', 'LU_LS']
             missing_cols = [col for col in required_cols if col not in df.columns]
             if missing_cols:
                 raise HTTPException(
@@ -146,7 +150,6 @@ async def analyze_coordinates(
                 axis=1
             )
         elif format_type == "Decimal-Degree":
-            # Check for x, y columns
             if 'x' not in df.columns or 'y' not in df.columns:
                 raise HTTPException(
                     status_code=400, 
@@ -182,17 +185,15 @@ async def analyze_coordinates(
                 detail="geometry_type must be 'Point' or 'Polygon'"
             )
         
-        # Convert to GeoJSON
+        # Convert to GeoJSON (for frontend)
         geojson = json.loads(gdf.to_json())
         
-        # KKPRL Overlap Analysis
-        overlap_analysis = None
+        # === KKPRL Overlap Analysis ===
         kkprl_gdf = load_kkprl_json()
-        
         if kkprl_gdf is not None:
             if geometry_type == "Point":
                 overlap_analysis = analyze_point_overlap(gdf, kkprl_gdf)
-            elif geometry_type == "Polygon":
+            else:
                 overlap_analysis = analyze_polygon_overlap(gdf, kkprl_gdf)
         else:
             overlap_analysis = {
@@ -200,67 +201,41 @@ async def analyze_coordinates(
                 "message": "KKPRL data not available"
             }
         
+        # === Analisis 12 Mil Laut ===
+        mil12_gdf = load_12mil_shapefile()
+        if mil12_gdf is not None:
+            # call the helper that returns {"has_overlap", "wp_list", "message", ...}
+            overlap_12mil = analyze_overlap_12mil(gdf, mil12_gdf)
+        else:
+            overlap_12mil = {"has_overlap": False, "message": "Data 12 mil laut tidak tersedia"}
+        
+        # === Analisis Kawasan Konservasi ===
+        kawasan_gdf = load_kawasan_konservasi()
+        if kawasan_gdf is not None:
+            overlap_kawasan = analyze_overlap_kawasan(gdf, kawasan_gdf)
+        else:
+            overlap_kawasan = {"has_overlap": False, "message": "Data Kawasan Konservasi tidak tersedia"}
+    
+    # Final response
         return {
             "success": True,
             "coordinates": coordinates,
             "geometry_type": geometry_type,
             "geojson": geojson,
             "overlap_analysis": overlap_analysis,
-            "total_rows": len(coordinates)
+            "total_rows": len(coordinates),
+            "overlap_12mil": overlap_12mil,
+            "overlap_kawasan": overlap_kawasan,
         }
-        
+
     except pd.errors.EmptyDataError:
         raise HTTPException(status_code=400, detail="Excel file is empty or invalid")
+    except HTTPException:
+        # re-raise FastAPI HTTPExceptions unchanged
+        raise
     except Exception as e:
-        logger.error(f"Error analyzing coordinates: {e}")
+        logger.error(f"Error analyzing coordinates: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-
-@api_router.post("/download-shapefile")
-async def download_shapefile(request: DownloadShapefileRequest):
-    """Generate and download shapefile as ZIP"""
-    try:
-        # Create GeoDataFrame
-        if request.geometry_type == "Point":
-            gdf = create_point_geodataframe(request.coordinates)
-        elif request.geometry_type == "Polygon":
-            gdf = create_polygon_geodataframe(request.coordinates)
-        else:
-            raise HTTPException(
-                status_code=400, 
-                detail="geometry_type must be 'Point' or 'Polygon'"
-            )
-        
-        # Create temporary directory
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir_path = Path(tmpdir)
-            shapefile_path = tmpdir_path / f"{request.filename}.shp"
-            
-            # Save as shapefile
-            gdf.to_file(shapefile_path, driver='ESRI Shapefile', encoding='utf-8')
-            
-            # Create ZIP file in memory
-            zip_buffer = BytesIO()
-            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-                # Add all shapefile components to ZIP
-                for ext in ['.shp', '.shx', '.dbf', '.prj', '.cpg']:
-                    file_path = tmpdir_path / f"{request.filename}{ext}"
-                    if file_path.exists():
-                        zip_file.write(file_path, arcname=f"{request.filename}{ext}")
-            
-            # Reset buffer position
-            zip_buffer.seek(0)
-            
-            return StreamingResponse(
-                zip_buffer,
-                media_type="application/zip",
-                headers={"Content-Disposition": f"attachment; filename={request.filename}.zip"}
-            )
-    
-    except Exception as e:
-        logger.error(f"Error creating shapefile: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # Include the router in the main app
 app.include_router(api_router)
 

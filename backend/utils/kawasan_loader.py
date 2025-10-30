@@ -1,0 +1,50 @@
+import geopandas as gpd
+import tempfile
+import zipfile
+from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Cache agar tidak perlu load ulang setiap kali API dipanggil
+_kawasan_cache = None
+
+
+def load_kawasan_konservasi():
+    """
+    Memuat shapefile Kawasan Konservasi dari file ZIP lokal.
+    Letakkan file di: backend/data/Kawasan_Konservasi_2022_update.zip
+    """
+    global _kawasan_cache
+    if _kawasan_cache is not None:
+        return _kawasan_cache
+
+    try:
+        # Lokasi file ZIP (ubah jika folder kamu berbeda)
+        zip_path = Path(__file__).resolve().parent.parent / "data" / "Kawasan Konservasi 2022 update.zip"
+
+        if not zip_path.exists():
+            raise FileNotFoundError(f"File ZIP tidak ditemukan di {zip_path}")
+
+        logger.info(f"Memuat shapefile Kawasan Konservasi dari lokal: {zip_path}")
+
+        # Ekstraksi ke folder sementara
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with zipfile.ZipFile(zip_path, "r") as zip_ref:
+                zip_ref.extractall(tmpdir)
+
+            shp_files = list(Path(tmpdir).rglob("*.shp"))
+            if not shp_files:
+                raise FileNotFoundError("Tidak ditemukan file .shp di dalam ZIP Kawasan Konservasi")
+
+            # Baca shapefile
+            gdf = gpd.read_file(shp_files[0])
+            gdf.set_crs(epsg=4326, inplace=True)
+
+            _kawasan_cache = gdf
+            logger.info(f"Berhasil memuat {len(gdf)} fitur Kawasan Konservasi.")
+            return gdf
+
+    except Exception as e:
+        logger.error(f"Gagal memuat shapefile Kawasan Konservasi: {e}", exc_info=True)
+        return None
