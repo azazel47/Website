@@ -156,13 +156,40 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
             "message": "Error during overlap analysis"
         }
 
-def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) -> dict:
+def analyze_overlap_12mil_safe(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) -> dict:
     """
-    Analisis apakah titik/poligon berada di dalam batas 12 mil laut.
-    Jika overlap, tampilkan atribut 'WP'.
+    Analisis apakah titik/poligon berada di dalam atau bersinggungan dengan batas 12 mil laut.
+    Fungsi ini otomatis menyesuaikan CRS dan memperbaiki geometri invalid.
+
+    Args:
+        gdf: GeoDataFrame titik atau poligon yang akan dicek
+        mil12_gdf: GeoDataFrame polygon 12 mil dengan kolom 'WP'
+
+    Returns:
+        Dictionary dengan status overlap dan daftar 'WP' jika overlap
     """
     try:
-        joined = gpd.sjoin(gdf, mil12_gdf[["WP", "geometry"]], how="left", predicate="within")
+        # 1️⃣ Samakan CRS
+        if gdf.crs != mil12_gdf.crs:
+            mil12_gdf = mil12_gdf.to_crs(gdf.crs)
+
+        # 2️⃣ Perbaiki geometri invalid
+        mil12_gdf["geometry"] = mil12_gdf["geometry"].buffer(0)
+        gdf["geometry"] = gdf["geometry"].buffer(0)
+
+        # 3️⃣ Pastikan kolom 'WP' ada
+        if "WP" not in mil12_gdf.columns:
+            mil12_gdf["WP"] = "Unknown"
+
+        # 4️⃣ Spatial join menggunakan 'intersects'
+        joined = gpd.sjoin(
+            gdf,
+            mil12_gdf[["WP", "geometry"]],
+            how="left",
+            predicate="intersects"
+        )
+
+        # 5️⃣ Ambil yang overlap
         overlaps = joined[joined["index_right"].notna()]
 
         if overlaps.empty:
@@ -172,12 +199,12 @@ def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) ->
         return {
             "has_overlap": True,
             "wp_list": wp_list,
-            "message": f"12 mil laut Provinsi {', '.join(wp_list)}"
+            "message": f"Berada di dalam 12 mil laut Provinsi: {', '.join(wp_list)}"
         }
 
     except Exception as e:
-        logger.error(f"Error during 12 mil analysis: {e}")
         return {"has_overlap": False, "message": f"Error: {str(e)}"}
+
 
 def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: gpd.GeoDataFrame) -> dict:
     """
