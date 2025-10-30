@@ -156,7 +156,7 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
             "message": "Error during overlap analysis"
         }
 
-def analyze_overlap_12mil_safe(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) -> dict:
+def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) -> dict:
     """
     Analisis apakah titik/poligon berada di dalam atau bersinggungan dengan batas 12 mil laut.
     Fungsi ini otomatis menyesuaikan CRS dan memperbaiki geometri invalid.
