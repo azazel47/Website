@@ -215,7 +215,7 @@ const Home = () => {
 				<Card className="glass glow-hover border-cyan-500/30">
 				  <CardContent className="p-6">
 					<div className="flex items-center justify-between mb-1">
-					  <div className="text-3xl font-bold text-cyan-300">
+					  <div className="text-lg font-bold text-cyan-300 mb-1">
 						{result.overlap_kawasan?.overlap_count > 0
 						? result.overlap_kawasan.overlap_count
 						:"Diluar Kawasan Konservasi"}
