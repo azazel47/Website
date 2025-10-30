@@ -21,7 +21,7 @@ def load_kawasan_konservasi():
 
     try:
         # Lokasi file ZIP (ubah jika folder kamu berbeda)
-        zip_path = Path(__file__).resolve().parent.parent / "data" / "Kawasan Konservasi 2022 update.zip"
+        zip_path = Path(__file__).resolve().parent.parent / "Kawasan Konservasi 2022 update.zip"
 
         if not zip_path.exists():
             raise FileNotFoundError(f"File ZIP tidak ditemukan di {zip_path}")
