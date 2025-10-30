@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def load_12mil_shapefile():
     url = "https://raw.githubusercontent.com/azazel47/Website/main/12_Mil.zip"
     try:
