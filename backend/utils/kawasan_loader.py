@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_kawasan_konservasi():
-    url = "https://raw.githubusercontent.com/azazel47/Website/main/Kawasan Konservasi 2022 update.zip"
+    url = "https://raw.githubusercontent.com/azazel47/Website/main/Kawasan%20Konservasi%202022%20update.zip"
     try:
         r = requests.get(url)
         r.raise_for_status()  # pastikan request berhasil
@@ -35,5 +35,7 @@ def load_kawasan_konservasi():
                             gdf = gpd.read_file(pathlib.Path(tmpdir) / shp_file_name)
                             gdf.set_crs(epsg=4326, inplace=True)
                             logger.info(f"Berhasil load {len(gdf)} fitur Kawasan dari GitHub")
-                            return gdf
+
     except Exception as e:
+        logger.error(f"Gagal load kawasan Mil dari GitHub: {e}", exc_info=True)
+        return gpd.GeoDataFrame(columns=["NAMA_KK", "geometry"], geometry="geometry", crs="EPSG:4326")
