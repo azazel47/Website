@@ -17,7 +17,7 @@ def load_12mil_shapefile():
 
     try:
         # Lokasi file ZIP (ubah jika folder kamu berbeda)
-        zip_path = Path(__file__).resolve().parent.parent / "data" / "12_Mil.zip"
+        zip_path = Path(__file__).resolve().parent.parent / "12_Mil.zip"
 
         if not zip_path.exists():
             raise FileNotFoundError(f"File ZIP tidak ditemukan di {zip_path}")
