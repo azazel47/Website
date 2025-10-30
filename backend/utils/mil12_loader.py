@@ -1,46 +1,40 @@
 import geopandas as gpd
-import tempfile
+import requests
 import zipfile
-from pathlib import Path
+import io
 import logging
 
 logger = logging.getLogger(__name__)
-_12mil_cache = None
+
 
 def load_12mil_shapefile():
-    """
-    Memuat shapefile 12 mil dari file ZIP lokal.
-        """
-    global _12mil_cache
-    if _12mil_cache is not None:
-        return _12mil_cache
-
+    url = "https://raw.githubusercontent.com/azazel47/Website/main/12_Mil.zip"
     try:
-        # Lokasi file ZIP (ubah jika folder kamu berbeda)
-        zip_path = Path(__file__).resolve().parent.parent / "data" / "12_Mil.zip"
+        r = requests.get(url)
+        r.raise_for_status()  # pastikan request berhasil
 
-        if not zip_path.exists():
-            raise FileNotFoundError(f"File ZIP tidak ditemukan di {zip_path}")
-
-        logger.info(f"Memuat shapefile 12 mil: {zip_path}")
-
-        # Ekstraksi ke folder sementara
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                zip_ref.extractall(tmpdir)
-
-            shp_files = list(Path(tmpdir).rglob("*.shp"))
+        with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+            shp_files = [f for f in z.namelist() if f.endswith(".shp")]
             if not shp_files:
-                raise FileNotFoundError("Tidak ditemukan file .shp di dalam ZIP 12 Mil")
+                raise FileNotFoundError("Tidak ditemukan file .shp di ZIP 12 Mil GitHub")
 
-            # Baca shapefile
-            gdf = gpd.read_file(shp_files[0])
-            gdf.set_crs(epsg=4326, inplace=True)
-
-            _12mil_cache = gdf
-            logger.info(f"Berhasil memuat {len(gdf)} fitur 12 Mil.")
-            return gdf
-
+            # Ekstrak ke folder sementara
+            with io.BytesIO() as tmpfile:
+                tmpfile.write(r.content)
+                tmpfile.seek(0)
+                with zipfile.ZipFile(tmpfile) as z2:
+                    # Pilih shapefile pertama
+                    shp_file_name = shp_files[0]
+                    with z2.open(shp_file_name) as shp_f:
+                        # GeoPandas tidak bisa langsung baca file-like zip internal, jadi ekstrak
+                        import tempfile
+                        import pathlib
+                        with tempfile.TemporaryDirectory() as tmpdir:
+                            z2.extractall(tmpdir)
+                            gdf = gpd.read_file(pathlib.Path(tmpdir) / shp_file_name)
+                            gdf.set_crs(epsg=4326, inplace=True)
+                            logger.info(f"Berhasil load {len(gdf)} fitur 12 Mil dari GitHub")
+                            return gdf
     except Exception as e:
-        logger.error(f"Gagal memuat shapefile 12 Mil: {e}", exc_info=True)
-        return None
+        logger.error(f"Gagal load 12 Mil dari GitHub: {e}", exc_info=True)
+        return gpd.GeoDataFrame(columns=["WP", "geometry"], geometry="geometry", crs="EPSG:4326")
