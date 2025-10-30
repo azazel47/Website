@@ -49,14 +49,11 @@ const Home = () => {
 
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-	  formData.append("format_type", formatType);
-	  formData.append("geometry_type", geometryType);
-		
-      const response = await axios.post(`${API}/analyze-coordinates`, formData, {
-  		headers: { "Content-Type": "multipart/form-data" },
-	  });
+  const response = await axios.post(
+  	 `${API}/analyze-coordinates?format_type=${formatType}&geometry_type=${geometryType}`,
+  	 formData,
+  	 { headers: { "Content-Type": "multipart/form-data" } }
+  );
 
       setResult(response.data);
       console.log("📦 Data diterima dari backend:", response.data);
