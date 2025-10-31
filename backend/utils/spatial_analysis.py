@@ -1,6 +1,6 @@
 import geopandas as gpd
 from shapely.strtree import STRtree
-from shapely.geometry import shape
+from shapely.geometry import Point, Polygon
 from typing import Optional
 import logging
 
