@@ -226,11 +226,12 @@ def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: Optional[gpd.Geo
         # 🟢 Ambil dari cache kalau tidak dikirim dari luar
         if kawasan_gdf is None:
             kawasan_gdf, _ = load_kawasan_konservasi()
-
+    
         # 🛠 Pastikan kalau hasilnya tuple, ambil hanya GeoDataFrame-nya
         if isinstance(kawasan_gdf, tuple):
-        kawasan_gdf = kawasan_gdf[0]
-        
+            kawasan_gdf = kawasan_gdf[0]
+    
+        # 🚫 Jika gagal atau kosong
         if kawasan_gdf is None or kawasan_gdf.empty:
             return {"has_overlap": False, "message": "Data Kawasan kosong atau gagal dimuat."}
 
