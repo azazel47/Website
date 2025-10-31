@@ -10,7 +10,22 @@ from .kkprl_loader import load_kkprl_json
 
 logger = logging.getLogger(__name__)
 
-
+def create_point_geodataframe(lat: float, lon: float) -> gpd.GeoDataFrame:
+    """
+    Membuat GeoDataFrame dari koordinat latitude dan longitude.
+    CRS default: EPSG:4326
+    """
+    try:
+        geom = Point(lon, lat)
+        gdf = gpd.GeoDataFrame(
+            [{"latitude": lat, "longitude": lon, "geometry": geom}],
+            geometry="geometry",
+            crs="EPSG:4326"
+        )
+        return gdf
+    except Exception as e:
+        raise ValueError(f"Gagal membuat GeoDataFrame: {e}")
+        
 # ==========================================================
 # 🟢 Helper umum
 # ==========================================================
