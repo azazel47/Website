@@ -26,39 +26,34 @@ def create_point_geodataframe(lat: float, lon: float) -> gpd.GeoDataFrame:
     except Exception as e:
         raise ValueError(f"Gagal membuat GeoDataFrame: {e}")
 
-def create_polygon_geodataframe(coords: list) -> gpd.GeoDataFrame:
+def create_polygon_geodataframe(coords):
     """
-    Membuat GeoDataFrame dari daftar koordinat Polygon.
-    Contoh input:
-        coords = [
-            {"lat": -6.2, "lon": 106.8},
-            {"lat": -6.21, "lon": 106.81},
-            {"lat": -6.22, "lon": 106.79},
-            {"lat": -6.2, "lon": 106.8}  # titik terakhir = titik pertama
-        ]
+    Membuat GeoDataFrame Polygon dari daftar koordinat.
+
+    coords: list of dict, contoh:
+        [{"lat": -6.123, "lng": 106.789}, {"lat": -6.124, "lng": 106.790}, ...]
     """
     try:
-        if not coords or len(coords) < 3:
-            raise ValueError("Koordinat polygon tidak valid (minimal 3 titik).")
+        # Pastikan kunci fleksibel: bisa 'lon', 'lng', atau 'x'
+        polygon_coords = []
+        for c in coords:
+            lon = c.get("lon") or c.get("lng") or c.get("x")
+            lat = c.get("lat") or c.get("y")
+            if lon is None or lat is None:
+                raise ValueError(f"Koordinat tidak valid: {c}")
+            polygon_coords.append((lon, lat))
 
-        # ubah dict ke tuple (lon, lat)
-        polygon_coords = [(c["lon"], c["lat"]) for c in coords]
-
-        # pastikan polygon tertutup
+        # Tutup polygon bila belum tertutup
         if polygon_coords[0] != polygon_coords[-1]:
             polygon_coords.append(polygon_coords[0])
 
-        geom = Polygon(polygon_coords)
-
-        gdf = gpd.GeoDataFrame(
-            [{"geometry": geom}],
-            geometry="geometry",
-            crs="EPSG:4326"
-        )
+        polygon = Polygon(polygon_coords)
+        gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:4326")
         return gdf
 
     except Exception as e:
         raise ValueError(f"Gagal membuat GeoDataFrame polygon: {e}")
+
 
 # ============================================================
 # 🧠 Fungsi: Analisis Overlap untuk TITIK
