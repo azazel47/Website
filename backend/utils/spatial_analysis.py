@@ -2,6 +2,9 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point, Polygon
 from typing import List, Dict, Tuple, Optional
+from .kawasan_loader import load_kawasan_konservasi
+from .mil12_loader import load_12mil_shapefile
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -156,7 +159,7 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
             "message": "Error during overlap analysis"
         }
 
-def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) -> dict:
+def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
     """
     Analisis apakah titik/poligon berada di dalam atau bersinggungan dengan batas 12 mil laut.
     Fungsi ini otomatis menyesuaikan CRS dan memperbaiki geometri invalid.
@@ -168,7 +171,14 @@ def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) ->
     Returns:
         Dictionary dengan status overlap dan daftar 'WP' jika overlap
     """
+    from .mil12_loader import load_12mil_shapefile
     try:
+        if mil12_gdf is None:
+            mil12_gdf, _ = load_12mil_shapefile()
+
+        if mil12_gdf is None or mil12_gdf.empty:
+            return {"has_overlap": False, "message": "Data Kawasan kosong atau gagal dimuat."}
+
         # 1️⃣ Samakan CRS
         if gdf.crs != mil12_gdf.crs:
             mil12_gdf = mil12_gdf.to_crs(gdf.crs)
@@ -206,12 +216,20 @@ def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: gpd.GeoDataFrame) ->
         return {"has_overlap": False, "message": f"Error: {str(e)}"}
 
 
-def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: gpd.GeoDataFrame) -> dict:
+def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
     """
     Analisis apakah titik/poligon berada di dalam Kawasan Konservasi.
     Otomatis menyesuaikan kolom (NAMA_KK, KEWENANGAN, DASAR_HKM) jika berbeda nama.
     """
+    from .kawasan_loader import load_kawasan_konservasi
     try:
+        # 🟢 Ambil dari cache kalau tidak dikirim dari luar
+        if kawasan_gdf is None:
+            kawasan_gdf, _ = load_kawasan_konservasi()
+
+        if kawasan_gdf is None or kawasan_gdf.empty:
+            return {"has_overlap": False, "message": "Data Kawasan kosong atau gagal dimuat."}
+
         # 1️⃣ Samakan CRS
         if gdf.crs != kawasan_gdf.crs:
             kawasan_gdf = kawasan_gdf.to_crs(gdf.crs)
