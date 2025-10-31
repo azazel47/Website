@@ -25,6 +25,40 @@ def create_point_geodataframe(lat: float, lon: float) -> gpd.GeoDataFrame:
         return gdf
     except Exception as e:
         raise ValueError(f"Gagal membuat GeoDataFrame: {e}")
+
+def create_polygon_geodataframe(coords: list) -> gpd.GeoDataFrame:
+    """
+    Membuat GeoDataFrame dari daftar koordinat Polygon.
+    Contoh input:
+        coords = [
+            {"lat": -6.2, "lon": 106.8},
+            {"lat": -6.21, "lon": 106.81},
+            {"lat": -6.22, "lon": 106.79},
+            {"lat": -6.2, "lon": 106.8}  # titik terakhir = titik pertama
+        ]
+    """
+    try:
+        if not coords or len(coords) < 3:
+            raise ValueError("Koordinat polygon tidak valid (minimal 3 titik).")
+
+        # ubah dict ke tuple (lon, lat)
+        polygon_coords = [(c["lon"], c["lat"]) for c in coords]
+
+        # pastikan polygon tertutup
+        if polygon_coords[0] != polygon_coords[-1]:
+            polygon_coords.append(polygon_coords[0])
+
+        geom = Polygon(polygon_coords)
+
+        gdf = gpd.GeoDataFrame(
+            [{"geometry": geom}],
+            geometry="geometry",
+            crs="EPSG:4326"
+        )
+        return gdf
+
+    except Exception as e:
+        raise ValueError(f"Gagal membuat GeoDataFrame polygon: {e}")
         
 # ==========================================================
 # 🟢 Helper umum
