@@ -6,7 +6,7 @@ import logging
 
 from .kawasan_loader import load_kawasan_konservasi
 from .mil12_loader import load_12mil_shapefile
-from .kkprl_loader import load_kkprl_data
+from .kkprl_loader import load_kkprl_json
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ def analyze_overlap_kkprl(gdf: gpd.GeoDataFrame, kkprl_gdf: Optional[gpd.GeoData
     """Analisis overlap dengan KKPRL"""
     try:
         if kkprl_gdf is None:
-            kkprl_gdf = load_kkprl_data()
+            kkprl_gdf = load_kkprl_json()
 
         if isinstance(kkprl_gdf, tuple):
             kkprl_gdf = kkprl_gdf[0]
