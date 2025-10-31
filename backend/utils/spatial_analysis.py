@@ -30,20 +30,31 @@ def create_polygon_geodataframe(coords):
     """
     Membuat GeoDataFrame Polygon dari daftar koordinat.
 
-    coords: list of dict, contoh:
-        [{"lat": -6.123, "lng": 106.789}, {"lat": -6.124, "lng": 106.790}, ...]
+    Mendukung berbagai format kunci:
+    - {'lat', 'lon'}
+    - {'lat', 'lng'}
+    - {'latitude', 'longitude'}
+    - {'x', 'y'}
     """
     try:
-        # Pastikan kunci fleksibel: bisa 'lon', 'lng', atau 'x'
         polygon_coords = []
         for c in coords:
-            lon = c.get("lon") or c.get("lng") or c.get("x")
-            lat = c.get("lat") or c.get("y")
+            lon = (
+                c.get("lon")
+                or c.get("lng")
+                or c.get("x")
+                or c.get("longitude")
+            )
+            lat = (
+                c.get("lat")
+                or c.get("y")
+                or c.get("latitude")
+            )
             if lon is None or lat is None:
                 raise ValueError(f"Koordinat tidak valid: {c}")
             polygon_coords.append((lon, lat))
 
-        # Tutup polygon bila belum tertutup
+        # Tutup polygon jika belum tertutup
         if polygon_coords[0] != polygon_coords[-1]:
             polygon_coords.append(polygon_coords[0])
 
