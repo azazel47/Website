@@ -111,61 +111,55 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
         return {"has_overlap": False, "message": str(e)}
 
 
-from shapely.strtree import STRtree
-import geopandas as gpd
-from typing import Optional
-from .mil12_loader import load_12mil_shapefile
-import logging
-
-logger = logging.getLogger(__name__)
-
 def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
     """
     Analisis apakah geometri (titik/poligon) berada di dalam 12 mil laut provinsi.
     Gunakan STRtree untuk mempercepat pencarian spasial.
     """
     try:
-        # 🔹 Ambil dari cache bila tidak dikirim
         if mil12_gdf is None:
             mil12_gdf, _ = load_12mil_shapefile()
 
-        # 🔹 Ambil hanya GeoDataFrame bila hasil tuple
         if isinstance(mil12_gdf, tuple):
             mil12_gdf = mil12_gdf[0]
 
-        # 🔹 Validasi
         if mil12_gdf is None or mil12_gdf.empty:
             return {"has_overlap": False, "message": "Data 12 mil kosong atau tidak valid"}
 
-        # 🔹 Samakan CRS
         if gdf.crs != mil12_gdf.crs:
             mil12_gdf = mil12_gdf.to_crs(gdf.crs)
 
-        # 🔹 Pastikan kolom WP ada
         if "WP" not in mil12_gdf.columns:
             mil12_gdf["WP"] = "Tidak diketahui"
 
-        # 🔹 Perbaiki geometri invalid
+        # Perbaiki geometri invalid
         mil12_gdf["geometry"] = mil12_gdf["geometry"].buffer(0)
         gdf["geometry"] = gdf["geometry"].buffer(0)
 
-        # 🔹 Bangun spatial index (cepat)
+        # Buat spatial index
         tree = STRtree(mil12_gdf.geometry)
         idx_map = {id(geom): i for i, geom in enumerate(mil12_gdf.geometry)}
 
         overlaps = []
         for geom in gdf.geometry:
+            if geom is None or geom.is_empty:
+                continue
+
             candidates = tree.query(geom)
             for c in candidates:
-                if geom.intersects(c):
-                    row = mil12_gdf.iloc[idx_map[id(c)]]
-                    overlaps.append(row["WP"])
+                # ⛔ Skip jika bukan geometry (tuple/None)
+                if not hasattr(c, "intersects"):
+                    continue
+                try:
+                    if geom.intersects(c):
+                        row = mil12_gdf.iloc[idx_map[id(c)]]
+                        overlaps.append(row["WP"])
+                except Exception:
+                    continue  # kadang error karena geometri rusak
 
-        # 🔹 Tidak ada hasil overlap
         if not overlaps:
             return {"has_overlap": False, "message": "Berada di luar 12 mil laut"}
 
-        # 🔹 Unik & susun hasil
         unique_wp = sorted(set(overlaps))
         return {
             "has_overlap": True,
