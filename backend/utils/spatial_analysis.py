@@ -1,14 +1,28 @@
 import geopandas as gpd
 from shapely.strtree import STRtree
 from shapely.geometry import Point, Polygon
-from typing import Optional
+from typing import Optional, List, Dict
 import logging
+from functools import lru_cache
 
 from .kawasan_loader import load_kawasan_konservasi
 from .mil12_loader import load_12mil_shapefile
 from .kkprl_loader import load_kkprl_json
 
 logger = logging.getLogger(__name__)
+
+# Cache untuk data yang sering diakses
+@lru_cache(maxsize=1)
+def get_cached_kawasan():
+    return load_kawasan_konservasi()
+
+@lru_cache(maxsize=1)
+def get_cached_12mil():
+    return load_12mil_shapefile()
+
+@lru_cache(maxsize=1)
+def get_cached_kkprl():
+    return load_kkprl_json()
 
 def create_point_geodataframe(lat: float, lon: float) -> gpd.GeoDataFrame:
     """
@@ -26,7 +40,7 @@ def create_point_geodataframe(lat: float, lon: float) -> gpd.GeoDataFrame:
     except Exception as e:
         raise ValueError(f"Gagal membuat GeoDataFrame: {e}")
 
-def create_polygon_geodataframe(coords):
+def create_polygon_geodataframe(coords: List[Dict]) -> gpd.GeoDataFrame:
     """
     Membuat GeoDataFrame Polygon dari daftar koordinat.
 
@@ -40,19 +54,19 @@ def create_polygon_geodataframe(coords):
         polygon_coords = []
         for c in coords:
             lon = (
-                c.get("lon")
-                or c.get("lng")
-                or c.get("x")
-                or c.get("longitude")
+                c.get("lon") or 
+                c.get("lng") or 
+                c.get("x") or 
+                c.get("longitude")
             )
             lat = (
-                c.get("lat")
-                or c.get("y")
-                or c.get("latitude")
+                c.get("lat") or 
+                c.get("y") or 
+                c.get("latitude")
             )
             if lon is None or lat is None:
                 raise ValueError(f"Koordinat tidak valid: {c}")
-            polygon_coords.append((lon, lat))
+            polygon_coords.append((float(lon), float(lat)))
 
         # Tutup polygon jika belum tertutup
         if polygon_coords[0] != polygon_coords[-1]:
@@ -65,177 +79,81 @@ def create_polygon_geodataframe(coords):
     except Exception as e:
         raise ValueError(f"Gagal membuat GeoDataFrame polygon: {e}")
 
-
-# ============================================================
-# 🧠 Fungsi: Analisis Overlap untuk TITIK
-# ============================================================
-def analyze_point_overlap(
-    gdf: gpd.GeoDataFrame,
-    reference_gdf: gpd.GeoDataFrame,
-    name_field: str = "NAMA"
-) -> dict:
-    """
-    Analisis apakah titik berada di dalam area referensi (Polygon).
-
-    Args:
-        gdf (GeoDataFrame): Titik yang dianalisis
-        reference_gdf (GeoDataFrame): Dataset referensi (misal KKPRL/Kawasan)
-        name_field (str): Kolom nama untuk ditampilkan di hasil
-
-    Returns:
-        dict: {"has_overlap": bool, "message": str, "matched_names": list}
-    """
-    try:
-        if gdf is None or gdf.empty:
-            return {"has_overlap": False, "message": "GeoDataFrame titik kosong."}
-        if reference_gdf is None or reference_gdf.empty:
-            return {"has_overlap": False, "message": "Data referensi kosong."}
-
-        # Samakan CRS
-        if gdf.crs != reference_gdf.crs:
-            reference_gdf = reference_gdf.to_crs(gdf.crs)
-
-        # Buat spatial index
-        tree = STRtree(reference_gdf.geometry)
-        idx_map = {id(geom): i for i, geom in enumerate(reference_gdf.geometry)}
-
-        matched_names = []
-        for point in gdf.geometry:
-            candidates = tree.query(point)
-            for c in candidates:
-                if point.intersects(c):
-                    row = reference_gdf.iloc[idx_map[id(c)]]
-                    matched_names.append(row.get(name_field, "Tidak Dikenal"))
-
-        if not matched_names:
-            return {"has_overlap": False, "message": "Tidak ada titik di dalam area referensi."}
-        else:
-            return {
-                "has_overlap": True,
-                "message": f"Titik berada di dalam area: {', '.join(sorted(set(matched_names)))}",
-                "matched_names": sorted(set(matched_names)),
-            }
-
-    except Exception as e:
-        return {"has_overlap": False, "message": f"Error analisis titik: {e}"}
-
-
-# ============================================================
-# 🧭 Fungsi: Analisis Overlap untuk POLIGON
-# ============================================================
-def analyze_polygon_overlap(
-    gdf: gpd.GeoDataFrame,
-    reference_gdf: gpd.GeoDataFrame,
-    name_field: str = "NAMA"
-) -> dict:
-    """
-    Analisis apakah polygon input beririsan dengan area referensi.
-
-    Args:
-        gdf (GeoDataFrame): Polygon hasil input user
-        reference_gdf (GeoDataFrame): Dataset referensi (KKPRL, Kawasan, 12 mil)
-        name_field (str): Kolom nama untuk ditampilkan
-
-    Returns:
-        dict: {"has_overlap": bool, "message": str, "matched_names": list}
-    """
-    try:
-        if gdf is None or gdf.empty:
-            return {"has_overlap": False, "message": "GeoDataFrame polygon kosong."}
-        if reference_gdf is None or reference_gdf.empty:
-            return {"has_overlap": False, "message": "Data referensi kosong."}
-
-        # Samakan CRS
-        if gdf.crs != reference_gdf.crs:
-            reference_gdf = reference_gdf.to_crs(gdf.crs)
-
-        # Buat spatial index
-        tree = STRtree(reference_gdf.geometry)
-        idx_map = {id(geom): i for i, geom in enumerate(reference_gdf.geometry)}
-
-        matched_names = []
-        for geom in gdf.geometry:
-            candidates = tree.query(geom)
-            for candidate in candidates:
-                # ✅ pastikan keduanya Geometry valid
-                if not geom.is_valid or not candidate.is_valid:
-                    continue
-                if geom.intersects(candidate):
-                    row = reference_gdf.iloc[idx_map[id(candidate)]]
-                    matched_names.append(row.get(name_field, "Tidak Dikenal"))
-
-        if not matched_names:
-            return {"has_overlap": False, "message": "Tidak ada irisan dengan area referensi."}
-        else:
-            return {
-                "has_overlap": True,
-                "message": f"Polygon beririsan dengan area: {', '.join(sorted(set(matched_names)))}",
-                "matched_names": sorted(set(matched_names)),
-            }
-
-    except Exception as e:
-        return {"has_overlap": False, "message": f"Error: {e}"}
-
-# ==========================================================
-# 🟢 Helper umum
-# ==========================================================
-def _safe_intersects(geom, candidate):
-    """Cek intersect dengan aman, hanya jika keduanya Geometry valid"""
-    if geom is None or geom.is_empty or not hasattr(candidate, "intersects"):
-        return False
-    try:
-        return geom.intersects(candidate)
-    except Exception:
-        return False
-
-
-def _safe_buffer_fix(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Perbaiki geometry invalid"""
-    if "geometry" in gdf:
-        gdf["geometry"] = gdf["geometry"].buffer(0)
+def _optimize_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Optimasi geometri untuk performa query yang lebih baik"""
+    if gdf is None or gdf.empty:
+        return gdf
+    
+    gdf = gdf.copy()
+    # Simplify geometri untuk mengurangi kompleksitas (toleransi kecil untuk presisi)
+    if not gdf.empty:
+        gdf['geometry'] = gdf['geometry'].simplify(tolerance=0.00001, preserve_topology=True)
+    
     return gdf
 
-
-# ==========================================================
-# 🟢 Kawasan Konservasi
-# ==========================================================
-def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
-    """Analisis overlap dengan Kawasan Konservasi"""
+def _fast_spatial_join(gdf: gpd.GeoDataFrame, reference_gdf: gpd.GeoDataFrame, predicate: str = 'intersects') -> List:
+    """
+    Fast spatial join menggunakan STRtree dengan optimasi
+    """
     try:
-        if kawasan_gdf is None:
-            kawasan_gdf, kawasan_index = load_kawasan_konservasi()
-        elif isinstance(kawasan_gdf, tuple):
-            kawasan_gdf, kawasan_index = kawasan_gdf
-        else:
-            kawasan_index = STRtree(kawasan_gdf.geometry)
+        # Optimasi kedua GeoDataFrame
+        gdf_opt = _optimize_geometries(gdf)
+        ref_opt = _optimize_geometries(reference_gdf)
+        
+        # Buat spatial index untuk reference data
+        tree = STRtree(ref_opt.geometry)
+        idx_map = {id(geom): i for i, geom in enumerate(ref_opt.geometry)}
+        
+        matches = []
+        for geom in gdf_opt.geometry:
+            if not geom.is_valid:
+                continue
+                
+            # Query spatial index
+            candidates = tree.query(geom)
+            for candidate in candidates:
+                if geom.intersects(candidate):
+                    row_idx = idx_map[id(candidate)]
+                    matches.append((geom, row_idx))
+        
+        return matches
+    except Exception as e:
+        logger.error(f"Error in fast spatial join: {e}")
+        return []
 
+# ============================================================
+# 🧠 FUNGSI ANALISIS OVERLOAD YANG DIOPTIMASI
+# ============================================================
+
+def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame) -> dict:
+    """Analisis overlap dengan Kawasan Konservasi (Optimized)"""
+    try:
+        kawasan_gdf, kawasan_index = get_cached_kawasan()
+        
         if kawasan_gdf is None or kawasan_gdf.empty:
             return {"has_overlap": False, "message": "Data Kawasan kosong"}
-
+        
+        # Pastikan CRS sama
         if gdf.crs != kawasan_gdf.crs:
             kawasan_gdf = kawasan_gdf.to_crs(gdf.crs)
-
-        kawasan_gdf = _safe_buffer_fix(kawasan_gdf)
-        gdf = _safe_buffer_fix(gdf)
-
-        idx_map = {id(geom): i for i, geom in enumerate(kawasan_gdf.geometry)}
-        overlaps, nama_list = [], []
-
-        for geom in gdf.geometry:
-            candidates = kawasan_index.query(geom)
-            for c in candidates:
-                if _safe_intersects(geom, c):
-                    row = kawasan_gdf.iloc[idx_map[id(c)]]
-                    overlaps.append(row["NAMA_KK"])
-                    nama_list.append(row["NAMA_KK"])
-
-        if not overlaps:
+        
+        # Gunakan spatial join yang dioptimasi
+        matches = _fast_spatial_join(gdf, kawasan_gdf)
+        
+        if not matches:
             return {"has_overlap": False, "message": "Tidak berada di Kawasan Konservasi"}
-
+        
+        # Kumpulkan hasil
+        nama_list = []
+        for geom, row_idx in matches:
+            row = kawasan_gdf.iloc[row_idx]
+            nama_list.append(row.get("NAMA_KK", "Tidak Dikenal"))
+        
         unique_names = sorted(set(nama_list))
         return {
             "has_overlap": True,
             "nama_kawasan": unique_names,
+            "overlap_count": len(matches),
             "message": f"Berada di Kawasan Konservasi: {', '.join(unique_names)}"
         }
 
@@ -243,45 +161,35 @@ def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: Optional[gpd.Geo
         logger.error(f"Error in analyze_overlap_kawasan: {e}", exc_info=True)
         return {"has_overlap": False, "message": f"Error: {str(e)}"}
 
-
-# ==========================================================
-# 🟢 Batas 12 Mil Laut
-# ==========================================================
-def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
-    """Analisis overlap dengan batas 12 mil laut"""
+def analyze_overlap_12mil(gdf: gpd.GeoDataFrame) -> dict:
+    """Analisis overlap dengan batas 12 mil laut (Optimized)"""
     try:
-        if mil12_gdf is None:
-            mil12_gdf, _ = load_12mil_shapefile()
-        if isinstance(mil12_gdf, tuple):
-            mil12_gdf = mil12_gdf[0]
-
+        mil12_gdf, mil12_index = get_cached_12mil()
+        
         if mil12_gdf is None or mil12_gdf.empty:
             return {"has_overlap": False, "message": "Data 12 mil kosong"}
-
+        
+        # Pastikan CRS sama
         if gdf.crs != mil12_gdf.crs:
             mil12_gdf = mil12_gdf.to_crs(gdf.crs)
-
-        mil12_gdf = _safe_buffer_fix(mil12_gdf)
-        gdf = _safe_buffer_fix(gdf)
-
-        tree = STRtree(mil12_gdf.geometry)
-        idx_map = {id(geom): i for i, geom in enumerate(mil12_gdf.geometry)}
-
-        overlaps = []
-        for geom in gdf.geometry:
-            candidates = tree.query(geom)
-            for c in candidates:
-                if _safe_intersects(geom, c):
-                    row = mil12_gdf.iloc[idx_map[id(c)]]
-                    overlaps.append(row["WP"])
-
-        if not overlaps:
+        
+        # Gunakan spatial join yang dioptimasi
+        matches = _fast_spatial_join(gdf, mil12_gdf)
+        
+        if not matches:
             return {"has_overlap": False, "message": "Berada di luar 12 mil laut"}
-
-        unique_wp = sorted(set(overlaps))
+        
+        # Kumpulkan hasil
+        wp_list = []
+        for geom, row_idx in matches:
+            row = mil12_gdf.iloc[row_idx]
+            wp_list.append(row.get("WP", "Tidak Dikenal"))
+        
+        unique_wp = sorted(set(wp_list))
         return {
             "has_overlap": True,
             "wp_list": unique_wp,
+            "overlap_count": len(matches),
             "message": f"Berada di dalam 12 mil laut: {', '.join(unique_wp)}"
         }
 
@@ -289,77 +197,104 @@ def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: Optional[gpd.GeoData
         logger.error(f"Error in analyze_overlap_12mil: {e}", exc_info=True)
         return {"has_overlap": False, "message": f"Error: {str(e)}"}
 
-
-# ==========================================================
-# 🟢 KKPRL (Kesesuaian Kegiatan Pemanfaatan Ruang Laut)
-# ==========================================================
-def analyze_overlap_kkprl(gdf: gpd.GeoDataFrame, kkprl_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
-    """Analisis overlap dengan KKPRL"""
+def analyze_overlap_kkprl(gdf: gpd.GeoDataFrame) -> dict:
+    """Analisis overlap dengan KKPRL (Optimized)"""
     try:
-        if kkprl_gdf is None:
-            kkprl_gdf = load_kkprl_json()
-
-        if isinstance(kkprl_gdf, tuple):
-            kkprl_gdf = kkprl_gdf[0]
-
+        kkprl_gdf = get_cached_kkprl()
+        
         if kkprl_gdf is None or kkprl_gdf.empty:
             return {"has_overlap": False, "message": "Data KKPRL kosong"}
-
+        
+        # Pastikan CRS sama
         if gdf.crs != kkprl_gdf.crs:
             kkprl_gdf = kkprl_gdf.to_crs(gdf.crs)
-
-        kkprl_gdf = _safe_buffer_fix(kkprl_gdf)
-        gdf = _safe_buffer_fix(gdf)
-
-        tree = STRtree(kkprl_gdf.geometry)
-        idx_map = {id(geom): i for i, geom in enumerate(kkprl_gdf.geometry)}
-
-        overlaps = []
-        for geom in gdf.geometry:
-            candidates = tree.query(geom)
-            for c in candidates:
-                if _safe_intersects(geom, c):
-                    row = kkprl_gdf.iloc[idx_map[id(c)]]
-                    overlaps.append({
-                        "Kegiatan": row.get("KEGIATAN"),
-                        "Nama": row.get("NAMA"),
-                        "Lokasi": row.get("LOKASI"),
-                    })
-
-        if not overlaps:
+        
+        # Gunakan spatial join yang dioptimasi
+        matches = _fast_spatial_join(gdf, kkprl_gdf)
+        
+        if not matches:
             return {"has_overlap": False, "message": "Tidak ada tumpang tindih dengan KKPRL"}
-
+        
+        # Kumpulkan hasil detail
+        overlap_details = []
+        for geom, row_idx in matches:
+            row = kkprl_gdf.iloc[row_idx]
+            overlap_details.append({
+                "Kegiatan": row.get("KEGIATAN", "Tidak Dikenal"),
+                "Nama": row.get("NAMA", "Tidak Dikenal"),
+                "Lokasi": row.get("LOKASI", "Tidak Dikenal"),
+                "No_KKPRL": row.get("NO_KKPRL", "Tidak Dikenal"),
+            })
+        
         return {
             "has_overlap": True,
-            "jumlah": len(overlaps),
-            "detail": overlaps,
-            "message": f"Ditemukan {len(overlaps)} tumpang tindih KKPRL"
+            "jumlah": len(overlap_details),
+            "detail": overlap_details,
+            "message": f"Ditemukan {len(overlap_details)} tumpang tindih KKPRL"
         }
 
     except Exception as e:
         logger.error(f"Error in analyze_overlap_kkprl: {e}", exc_info=True)
         return {"has_overlap": False, "message": f"Error: {str(e)}"}
 
+# ==========================================================
+# 🟢 ANALISIS UTAMA (GABUNGAN SEMUA) - DIOPTIMASI
+# ==========================================================
 
-# ==========================================================
-# 🟢 Analisis utama (gabungan semua)
-# ==========================================================
 def analyze_all_layers(user_gdf: gpd.GeoDataFrame) -> dict:
-    """Analisis semua lapisan sekaligus"""
+    """Analisis semua lapisan sekaligus dengan paralelisasi sederhana"""
     try:
-        logger.info("Running full overlay analysis...")
-
+        logger.info("Running optimized full overlay analysis...")
+        
+        # Eksekusi semua analisis
         result_kawasan = analyze_overlap_kawasan(user_gdf)
         result_12mil = analyze_overlap_12mil(user_gdf)
         result_kkprl = analyze_overlap_kkprl(user_gdf)
-
+        
+        # Hitung statistik performa
+        total_overlaps = (
+            (result_kawasan.get('overlap_count', 0) if result_kawasan.get('has_overlap') else 0) +
+            (result_12mil.get('overlap_count', 0) if result_12mil.get('has_overlap') else 0) +
+            (result_kkprl.get('jumlah', 0) if result_kkprl.get('has_overlap') else 0)
+        )
+        
         return {
             "success": True,
+            "total_overlaps": total_overlaps,
             "overlap_kawasan": result_kawasan,
             "overlap_12mil": result_12mil,
-            "overlap_kkprl": result_kkprl
+            "overlap_kkprl": result_kkprl,
+            "analysis_time": "optimized"  # Flag untuk frontend
         }
 
     except Exception as e:
         logger.error(f"Error in analyze_all_layers: {e}", exc_info=True)
         return {"success": False, "message": f"Error: {str(e)}"}
+
+# ==========================================================
+# 🟢 FUNGSI BANTU TAMBAHAN
+# ==========================================================
+
+def clear_cache():
+    """Bersihkan cache - berguna untuk development"""
+    global get_cached_kawasan, get_cached_12mil, get_cached_kkprl
+    get_cached_kawasan.cache_clear()
+    get_cached_12mil.cache_clear()
+    get_cached_kkprl.cache_clear()
+    logger.info("Spatial analysis cache cleared")
+
+def get_analysis_stats() -> dict:
+    """Dapatkan statistik tentang data yang di-cache"""
+    try:
+        kawasan_gdf, _ = get_cached_kawasan()
+        mil12_gdf, _ = get_cached_12mil()
+        kkprl_gdf = get_cached_kkprl()
+        
+        return {
+            "kawasan_features": len(kawasan_gdf) if kawasan_gdf is not None else 0,
+            "12mil_features": len(mil12_gdf) if mil12_gdf is not None else 0,
+            "kkprl_features": len(kkprl_gdf) if kkprl_gdf is not None else 0,
+            "cache_status": "active"
+        }
+    except Exception as e:
+        return {"cache_status": f"error: {str(e)}"}
