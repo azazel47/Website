@@ -111,18 +111,45 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
         return {"has_overlap": False, "message": str(e)}
 
 
+from shapely.strtree import STRtree
+import geopandas as gpd
+from typing import Optional
+from .mil12_loader import load_12mil_shapefile
+import logging
+
+logger = logging.getLogger(__name__)
+
 def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
+    """
+    Analisis apakah geometri (titik/poligon) berada di dalam 12 mil laut provinsi.
+    Gunakan STRtree untuk mempercepat pencarian spasial.
+    """
     try:
+        # 🔹 Ambil dari cache bila tidak dikirim
         if mil12_gdf is None:
             mil12_gdf, _ = load_12mil_shapefile()
+
+        # 🔹 Ambil hanya GeoDataFrame bila hasil tuple
         if isinstance(mil12_gdf, tuple):
             mil12_gdf = mil12_gdf[0]
-        if mil12_gdf is None or mil12_gdf.empty:
-            return {"has_overlap": False, "message": "Data 12 mil kosong"}
 
+        # 🔹 Validasi
+        if mil12_gdf is None or mil12_gdf.empty:
+            return {"has_overlap": False, "message": "Data 12 mil kosong atau tidak valid"}
+
+        # 🔹 Samakan CRS
         if gdf.crs != mil12_gdf.crs:
             mil12_gdf = mil12_gdf.to_crs(gdf.crs)
 
+        # 🔹 Pastikan kolom WP ada
+        if "WP" not in mil12_gdf.columns:
+            mil12_gdf["WP"] = "Tidak diketahui"
+
+        # 🔹 Perbaiki geometri invalid
+        mil12_gdf["geometry"] = mil12_gdf["geometry"].buffer(0)
+        gdf["geometry"] = gdf["geometry"].buffer(0)
+
+        # 🔹 Bangun spatial index (cepat)
         tree = STRtree(mil12_gdf.geometry)
         idx_map = {id(geom): i for i, geom in enumerate(mil12_gdf.geometry)}
 
@@ -132,53 +159,74 @@ def analyze_overlap_12mil(gdf: gpd.GeoDataFrame, mil12_gdf: Optional[gpd.GeoData
             for c in candidates:
                 if geom.intersects(c):
                     row = mil12_gdf.iloc[idx_map[id(c)]]
-                    overlaps.append(row.WP)
+                    overlaps.append(row["WP"])
 
+        # 🔹 Tidak ada hasil overlap
         if not overlaps:
             return {"has_overlap": False, "message": "Berada di luar 12 mil laut"}
 
+        # 🔹 Unik & susun hasil
         unique_wp = sorted(set(overlaps))
-        return {"has_overlap": True, "wp_list": unique_wp,
-                "message": f"Berada di dalam 12 mil laut: {', '.join(unique_wp)}"}
+        return {
+            "has_overlap": True,
+            "wp_list": unique_wp,
+            "message": f"Berada di dalam 12 mil laut: {', '.join(unique_wp)}"
+        }
+
     except Exception as e:
-        return {"has_overlap": False, "message": str(e)}
+        logger.error(f"Error in analyze_overlap_12mil: {e}", exc_info=True)
+        return {"has_overlap": False, "message": f"Error: {str(e)}"}
 
 
 def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: Optional[gpd.GeoDataFrame] = None) -> dict:
+
     try:
+        # 🔹 Ambil dari cache kalau belum dikirim
         if kawasan_gdf is None:
             kawasan_gdf, kawasan_index = load_kawasan_konservasi()
         else:
             kawasan_index = STRtree(kawasan_gdf.geometry)
 
+        # 🔹 Jika hasil masih tuple, ambil hanya gdf-nya
         if isinstance(kawasan_gdf, tuple):
             kawasan_gdf = kawasan_gdf[0]
 
-        if kawasan_gdf is None or kawasan_gdf.empty:
-            return {"has_overlap": False, "message": "Data Kawasan kosong"}
+        # 🔹 Validasi GeoDataFrame
+        if not isinstance(kawasan_gdf, gpd.GeoDataFrame) or kawasan_gdf.empty:
+            return {"has_overlap": False, "message": "Data Kawasan kosong atau tidak valid"}
 
+        # 🔹 Samakan CRS
         if gdf.crs != kawasan_gdf.crs:
             kawasan_gdf = kawasan_gdf.to_crs(gdf.crs)
 
+        # 🔹 Bangun indeks geometri untuk pencarian cepat
         idx_map = {id(geom): i for i, geom in enumerate(kawasan_gdf.geometry)}
+
         overlap_details, nama_list = [], []
 
-        for geom in gdf.geometry:
+        # 🔹 Loop tiap titik/poligon user
+        for _, row in gdf.iterrows():
+            geom = row.geometry
             candidates = kawasan_index.query(geom)
-            for candidate in candidates:
-                if geom.intersects(candidate):
-                    row = kawasan_gdf.iloc[idx_map[id(candidate)]]
-                    overlap_details.append({
-                        "NAMA_KK": row.get("NAMA_KK", "N/A"),
-                        "KEWENANGAN": row.get("KEWENANGAN", "N/A"),
-                        "DASAR_HKM": row.get("DASAR_HKM", "N/A")
-                    })
-                    nama_list.append(row.get("NAMA_KK", "N/A"))
 
+            for candidate in candidates:
+                i = idx_map[id(candidate)]
+                kawasan_row = kawasan_gdf.iloc[i]
+
+                if geom.intersects(candidate):
+                    overlap_details.append({
+                        "id": row.get("id", "Unknown"),
+                        "NAMA_KK": str(kawasan_row.get("NAMA_KK", "N/A")),
+                        "KEWENANGAN": str(kawasan_row.get("KEWENANGAN", "N/A")),
+                        "DASAR_HKM": str(kawasan_row.get("DASAR_HKM", "N/A")),
+                    })
+                    nama_list.append(kawasan_row.get("NAMA_KK", "N/A"))
+
+        # 🔹 Hasil akhir
         if not overlap_details:
             return {"has_overlap": False, "message": "Tidak berada di dalam Kawasan Konservasi"}
 
-        nama_list = sorted(set(nama_list))
+        nama_list = sorted(list(set(nama_list)))
         return {
             "has_overlap": True,
             "overlap_count": len(overlap_details),
@@ -186,6 +234,7 @@ def analyze_overlap_kawasan(gdf: gpd.GeoDataFrame, kawasan_gdf: Optional[gpd.Geo
             "overlap_details": overlap_details,
             "message": f"Berada di Kawasan Konservasi: {', '.join(nama_list)}"
         }
+
     except Exception as e:
-        logger.error(f"Error Kawasan Konservasi: {e}", exc_info=True)
-        return {"has_overlap": False, "message": str(e)}
+        logger.error(f"Error during Kawasan Konservasi analysis: {e}", exc_info=True)
+        return {"has_overlap": False, "message": f"Error: {str(e)}"}
