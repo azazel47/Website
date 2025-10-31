@@ -59,7 +59,117 @@ def create_polygon_geodataframe(coords: list) -> gpd.GeoDataFrame:
 
     except Exception as e:
         raise ValueError(f"Gagal membuat GeoDataFrame polygon: {e}")
-        
+
+# ============================================================
+# 🧠 Fungsi: Analisis Overlap untuk TITIK
+# ============================================================
+def analyze_point_overlap(
+    gdf: gpd.GeoDataFrame,
+    reference_gdf: gpd.GeoDataFrame,
+    name_field: str = "NAMA"
+) -> dict:
+    """
+    Analisis apakah titik berada di dalam area referensi (Polygon).
+
+    Args:
+        gdf (GeoDataFrame): Titik yang dianalisis
+        reference_gdf (GeoDataFrame): Dataset referensi (misal KKPRL/Kawasan)
+        name_field (str): Kolom nama untuk ditampilkan di hasil
+
+    Returns:
+        dict: {"has_overlap": bool, "message": str, "matched_names": list}
+    """
+    try:
+        if gdf is None or gdf.empty:
+            return {"has_overlap": False, "message": "GeoDataFrame titik kosong."}
+        if reference_gdf is None or reference_gdf.empty:
+            return {"has_overlap": False, "message": "Data referensi kosong."}
+
+        # Samakan CRS
+        if gdf.crs != reference_gdf.crs:
+            reference_gdf = reference_gdf.to_crs(gdf.crs)
+
+        # Buat spatial index
+        tree = STRtree(reference_gdf.geometry)
+        idx_map = {id(geom): i for i, geom in enumerate(reference_gdf.geometry)}
+
+        matched_names = []
+        for point in gdf.geometry:
+            candidates = tree.query(point)
+            for c in candidates:
+                if point.intersects(c):
+                    row = reference_gdf.iloc[idx_map[id(c)]]
+                    matched_names.append(row.get(name_field, "Tidak Dikenal"))
+
+        if not matched_names:
+            return {"has_overlap": False, "message": "Tidak ada titik di dalam area referensi."}
+        else:
+            return {
+                "has_overlap": True,
+                "message": f"Titik berada di dalam area: {', '.join(sorted(set(matched_names)))}",
+                "matched_names": sorted(set(matched_names)),
+            }
+
+    except Exception as e:
+        return {"has_overlap": False, "message": f"Error analisis titik: {e}"}
+
+
+# ============================================================
+# 🧭 Fungsi: Analisis Overlap untuk POLIGON
+# ============================================================
+def analyze_polygon_overlap(
+    gdf: gpd.GeoDataFrame,
+    reference_gdf: gpd.GeoDataFrame,
+    name_field: str = "NAMA"
+) -> dict:
+    """
+    Analisis apakah polygon input beririsan dengan area referensi.
+
+    Args:
+        gdf (GeoDataFrame): Polygon hasil input user
+        reference_gdf (GeoDataFrame): Dataset referensi (KKPRL, Kawasan, 12 mil)
+        name_field (str): Kolom nama untuk ditampilkan
+
+    Returns:
+        dict: {"has_overlap": bool, "message": str, "matched_names": list}
+    """
+    try:
+        if gdf is None or gdf.empty:
+            return {"has_overlap": False, "message": "GeoDataFrame polygon kosong."}
+        if reference_gdf is None or reference_gdf.empty:
+            return {"has_overlap": False, "message": "Data referensi kosong."}
+
+        # Samakan CRS
+        if gdf.crs != reference_gdf.crs:
+            reference_gdf = reference_gdf.to_crs(gdf.crs)
+
+        # Buat spatial index
+        tree = STRtree(reference_gdf.geometry)
+        idx_map = {id(geom): i for i, geom in enumerate(reference_gdf.geometry)}
+
+        matched_names = []
+        for geom in gdf.geometry:
+            candidates = tree.query(geom)
+            for candidate in candidates:
+                # ✅ pastikan keduanya Geometry valid
+                if not geom.is_valid or not candidate.is_valid:
+                    continue
+                if geom.intersects(candidate):
+                    row = reference_gdf.iloc[idx_map[id(candidate)]]
+                    matched_names.append(row.get(name_field, "Tidak Dikenal"))
+
+        if not matched_names:
+            return {"has_overlap": False, "message": "Tidak ada irisan dengan area referensi."}
+        else:
+            return {
+                "has_overlap": True,
+                "message": f"Polygon beririsan dengan area: {', '.join(sorted(set(matched_names)))}",
+                "matched_names": sorted(set(matched_names)),
+            }
+
+    except Exception as e:
+        return {"has_overlap": False, "message": f"Error: {e}"}
+
 # ==========================================================
 # 🟢 Helper umum
 # ==========================================================
