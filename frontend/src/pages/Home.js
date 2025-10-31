@@ -138,7 +138,9 @@ const Home = () => {
                 Upload file Excel dan pilih format koordinat
               </CardDescription>
             </CardHeader>
+	  
             <CardContent className="space-y-6">
+              {/* Dropzone */}
               <div
                 {...getRootProps()}
                 className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
@@ -216,7 +218,9 @@ const Home = () => {
             >
               Reset
             </Button>
-          </div>
+           </div>
+    	  </CardContent>
+		 </Card>
 
 
           {/* Hasil Analisis */}
