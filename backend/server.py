@@ -202,12 +202,14 @@ async def analyze_coordinates(
             }
         
         # === Analisis 12 Mil Laut ===
-        mil12_gdf = load_12mil_shapefile()
-        if mil12_gdf is not None:
+        # === Analisis 12 Mil Laut ===
+        overlap_12mil = analyze_overlap_12mil(gdf)
+        #mil12_gdf = load_12mil_shapefile()
+        #if mil12_gdf is not None:
             # call the helper that returns {"has_overlap", "wp_list", "message", ...}
-            overlap_12mil = analyze_overlap_12mil(gdf, mil12_gdf)
-        else:
-            overlap_12mil = {"has_overlap": False, "message": "Data 12 mil laut tidak tersedia"}
+            #overlap_12mil = analyze_overlap_12mil(gdf, mil12_gdf)
+        #else:
+            #overlap_12mil = {"has_overlap": False, "message": "Data 12 mil laut tidak tersedia"}
         
         # === Analisis Kawasan Konservasi ===
         kawasan_gdf = load_kawasan_konservasi()
