@@ -348,7 +348,7 @@ const Home = () => {
                         result.coordinates[0]?.latitude || 0,
                         result.coordinates[0]?.longitude || 0,
                       ]}
-                      zoom={20}
+                      zoom={30}
                       style={{ height: "100%", width: "100%" }}
                     >
                       <TileLayer
