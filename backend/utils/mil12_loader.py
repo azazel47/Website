@@ -3,11 +3,18 @@ import requests
 import zipfile
 import io
 import logging
+from shapely.strtree import STRtree
 
 logger = logging.getLogger(__name__)
-
+_12mil_cache = None
+_12mil_index = None  # ⬅️ cache untuk spatial index
 
 def load_12mil_shapefile():
+    global _12mil, _12mil_index
+    
+    if _12mil_cache is not None and _12mil_index is not None:
+        return _12mil_cache, _12mil_index
+        
     url = "https://raw.githubusercontent.com/azazel47/Website/main/12_Mil.zip"
     try:
         r = requests.get(url)
