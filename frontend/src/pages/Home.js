@@ -33,6 +33,7 @@ const Home = () => {
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    key: file ? file.name : "empty",
     onDrop,
     accept: {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
@@ -40,6 +41,7 @@ const Home = () => {
     },
     maxFiles: 1,
   });
+
 
   const handleAnalyze = async () => {
     if (!file) {
@@ -99,6 +101,14 @@ const Home = () => {
     }
   };
 
+  const handleReset = () => {
+  setFile(null);
+  setFormatType("Decimal-Degree");
+  setGeometryType("Point");
+  setResult(null);
+  toast.info("Form telah direset");
+};
+
   return (
     <>
       <div className="bg-pattern" />
@@ -128,7 +138,9 @@ const Home = () => {
                 Upload file Excel dan pilih format koordinat
               </CardDescription>
             </CardHeader>
+	  
             <CardContent className="space-y-6">
+              {/* Dropzone */}
               <div
                 {...getRootProps()}
                 className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
@@ -183,22 +195,33 @@ const Home = () => {
                 </div>
               </div>
 
-              <Button
-                onClick={handleAnalyze}
-                disabled={!file || loading}
-                className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold py-6 text-lg glow"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Menganalisis...
-                  </>
-                ) : (
-                  "Analisis Koordinat"
-                )}
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col md:flex-row gap-3">
+            <Button
+              onClick={handleAnalyze}
+              disabled={!file || loading}
+              className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold py-6 text-lg glow"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Menganalisis...
+                </>
+              ) : (
+                "Analisis Koordinat"
+              )}
+            </Button>
+          
+            <Button
+              onClick={handleReset}
+              variant="outline"
+              className="flex-1 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/10 py-6 text-lg"
+            >
+              Reset
+            </Button>
+           </div>
+    	  </CardContent>
+		 </Card>
+
 
           {/* Hasil Analisis */}
           {result && (
