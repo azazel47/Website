@@ -29,12 +29,15 @@ def get_kawasan_gdf():
 @lru_cache(maxsize=1)
 def get_mil12_gdf():
     from .mil12_loader import load_12mil_shapefile
-    mil12_gdf, _ = load_12mil_shapefile()
-    if mil12_gdf is not None and not mil12_gdf.empty:
-        if mil12_gdf.crs is None:
-            mil12_gdf.set_crs(epsg=4326, inplace=True)
-        elif mil12_gdf.crs.to_epsg() != 4326:
-            mil12_gdf = mil12_gdf.to_crs(epsg=4326)
+    mil12_gdf = load_12mil_shapefile()  # ambil langsung
+    if mil12_gdf is None or mil12_gdf.empty:
+        return gpd.GeoDataFrame(columns=["WP", "geometry"], geometry="geometry", crs="EPSG:4326")
+    
+    if mil12_gdf.crs is None:
+        mil12_gdf.set_crs(epsg=4326, inplace=True)
+    elif mil12_gdf.crs.to_epsg() != 4326:
+        mil12_gdf = mil12_gdf.to_crs(epsg=4326)
+    
     return mil12_gdf
 
 # ============================================================
