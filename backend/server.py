@@ -212,11 +212,12 @@ async def analyze_coordinates(
             #overlap_12mil = {"has_overlap": False, "message": "Data 12 mil laut tidak tersedia"}
         
         # === Analisis Kawasan Konservasi ===
-        kawasan_gdf = load_kawasan_konservasi()
-        if kawasan_gdf is not None:
-            overlap_kawasan = analyze_overlap_kawasan(gdf, kawasan_gdf)
-        else:
-            overlap_kawasan = {"has_overlap": False, "message": "Data Kawasan Konservasi tidak tersedia"}
+        overlap_kawasan = analyze_overlap_kawasan(gdf)
+        #kawasan_gdf = load_kawasan_konservasi()
+        #if kawasan_gdf is not None:
+            #overlap_kawasan = analyze_overlap_kawasan(gdf, kawasan_gdf)
+        #else:
+            #overlap_kawasan = {"has_overlap": False, "message": "Data Kawasan Konservasi tidak tersedia"}
     
     # Final response
         return {
