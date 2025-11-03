@@ -172,15 +172,6 @@ def analyze_polygon_overlap(gdf: gpd.GeoDataFrame, kkprl_gdf: gpd.GeoDataFrame) 
 # ============================================================
 
 def analyze_overlap_12mil(gdf: gpd.GeoDataFrame) -> dict:
-    """
-    Analisis apakah titik/poligon berada di dalam atau bersinggungan dengan batas 12 mil laut.
-
-    Args:
-        gdf: GeoDataFrame titik atau poligon yang akan dicek
-
-    Returns:
-        Dictionary dengan status overlap dan daftar 'WP' jika overlap
-    """
     try:
         mil12_gdf = get_mil12_gdf()
         if mil12_gdf is None or mil12_gdf.empty:
@@ -191,9 +182,10 @@ def analyze_overlap_12mil(gdf: gpd.GeoDataFrame) -> dict:
 
         overlaps = []
         for geom in gdf.geometry:
-            for pgeom, row in zip(prepared, mil12_gdf.itertuples()):
+            for i, pgeom in enumerate(prepared):
                 if pgeom.intersects(geom):
-                    overlaps.append(row.WP)
+                    wp_value = mil12_gdf.iloc[i]["WP"] if "WP" in mil12_gdf.columns else "Unknown"
+                    overlaps.append(wp_value)
 
         if not overlaps:
             return {"has_overlap": False, "message": "Berada di luar 12 mil laut"}
