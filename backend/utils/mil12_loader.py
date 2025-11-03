@@ -2,46 +2,45 @@ import geopandas as gpd
 import requests
 import zipfile
 import io
+import tempfile
+import pathlib
 import logging
-from shapely.strtree import STRtree
 
 logger = logging.getLogger(__name__)
-_12mil_cache = None
-_12mil_index = None  # ⬅️ cache untuk spatial index
 
-def load_12mil_shapefile():
-    global _12mil, _12mil_index
-    
-    if _12mil_cache is not None and _12mil_index is not None:
-        return _12mil_cache, _12mil_index
-        
+_12mil_cache = None  # Cache GeoDataFrame 12 mil
+
+def load_12mil_shapefile() -> gpd.GeoDataFrame:
+    """
+    Load shapefile 12 mil laut dari GitHub dan cache hasilnya.
+    """
+    global _12mil_cache
+    if _12mil_cache is not None:
+        return _12mil_cache
+
     url = "https://raw.githubusercontent.com/azazel47/Website/main/12_Mil.zip"
     try:
         r = requests.get(url)
-        r.raise_for_status()  # pastikan request berhasil
+        r.raise_for_status()
 
         with zipfile.ZipFile(io.BytesIO(r.content)) as z:
             shp_files = [f for f in z.namelist() if f.endswith(".shp")]
             if not shp_files:
                 raise FileNotFoundError("Tidak ditemukan file .shp di ZIP 12 Mil GitHub")
 
-            # Ekstrak ke folder sementara
-            with io.BytesIO() as tmpfile:
-                tmpfile.write(r.content)
-                tmpfile.seek(0)
-                with zipfile.ZipFile(tmpfile) as z2:
-                    # Pilih shapefile pertama
-                    shp_file_name = shp_files[0]
-                    with z2.open(shp_file_name) as shp_f:
-                        # GeoPandas tidak bisa langsung baca file-like zip internal, jadi ekstrak
-                        import tempfile
-                        import pathlib
-                        with tempfile.TemporaryDirectory() as tmpdir:
-                            z2.extractall(tmpdir)
-                            gdf = gpd.read_file(pathlib.Path(tmpdir) / shp_file_name)
-                            gdf.set_crs(epsg=4326, inplace=True)
-                            logger.info(f"Berhasil load {len(gdf)} fitur 12 Mil dari GitHub")
-                            return gdf
+            with tempfile.TemporaryDirectory() as tmpdir:
+                z.extractall(tmpdir)
+                shp_path = pathlib.Path(tmpdir) / shp_files[0]
+                gdf = gpd.read_file(shp_path)
+                gdf.set_crs(epsg=4326, inplace=True)
+                logger.info(f"Berhasil load {len(gdf)} fitur 12 Mil dari GitHub")
+                _12mil_cache = gdf
+                return gdf
+
     except Exception as e:
         logger.error(f"Gagal load 12 Mil dari GitHub: {e}", exc_info=True)
         return gpd.GeoDataFrame(columns=["WP", "geometry"], geometry="geometry", crs="EPSG:4326")
+
+def get_mil12_gdf() -> gpd.GeoDataFrame:
+    """Helper untuk ambil GeoDataFrame 12 mil, memanfaatkan cache"""
+    return load_12mil_shapefile()
