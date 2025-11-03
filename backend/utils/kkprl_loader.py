@@ -3,17 +3,22 @@ import json
 import geopandas as gpd
 from typing import Optional
 import logging
-from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
 # Cache untuk KKPRL data
 _kkprl_cache = None
 
-@lru_cache(maxsize=1)
 def load_kkprl_json() -> Optional[gpd.GeoDataFrame]:
     """
-    Loads and parses the KKPRL JSON data from GitHub dengan caching
+    Loads and parses the KKPRL JSON data from GitHub, converting it to a GeoDataFrame.
+
+    The JSON is expected to be in an ArcGIS format with 'attributes' and 'rings'
+    for geometry. This function converts it to a standard GeoJSON-like
+    structure before creating the GeoDataFrame.
+
+    Returns:
+        GeoDataFrame of KKPRL data if successful, otherwise None
     """
     global _kkprl_cache
 
@@ -22,52 +27,34 @@ def load_kkprl_json() -> Optional[gpd.GeoDataFrame]:
         return _kkprl_cache
 
     try:
-        # Fetch JSON dari GitHub
+        # Fetch JSON from GitHub
         url = "https://raw.githubusercontent.com/azazel47/Verdok/main/kkprl.json"
         logger.info(f"Fetching KKPRL data from {url}")
         response = requests.get(url, timeout=30)
         response.raise_for_status()
         data = response.json()
 
-        # Convert format ArcGIS ke GeoJSON
+        # Convert format ArcGIS (attributes + rings) to GeoJSON (properties + coordinates)
         features = []
         for feat in data.get("features", []):
             if "geometry" in feat and "rings" in feat["geometry"]:
-                # Pastikan rings tidak kosong
-                rings = feat["geometry"]["rings"]
-                if rings and len(rings) > 0:
-                    features.append({
-                        "type": "Feature",
-                        "properties": feat.get("attributes", {}),
-                        "geometry": {
-                            "type": "Polygon",
-                            "coordinates": rings
-                        }
-                    })
+                features.append({
+                    "type": "Feature",
+                    "properties": feat.get("attributes", {}),
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": feat["geometry"]["rings"]
+                    }
+                })
 
         if not features:
             logger.warning("No valid features found in KKPRL JSON")
             return None
 
-        # Buat GeoDataFrame
         gdf = gpd.GeoDataFrame.from_features(features)
-        
-        # Pastikan CRS
-        if gdf.crs is None:
-            gdf.set_crs(epsg=4326, inplace=True)
-        elif gdf.crs != "EPSG:4326":
-            gdf = gdf.to_crs("EPSG:4326")
+        gdf.set_crs(epsg=4326, inplace=True)
 
-        # Optimasi: Pilih hanya kolom yang diperlukan
-        expected_columns = ["KEGIATAN", "NAMA", "LOKASI", "NO_KKPRL"]
-        available_columns = [col for col in expected_columns if col in gdf.columns]
-        
-        # Tambahkan kolom yang tidak ada dengan nilai default
-        for col in expected_columns:
-            if col not in gdf.columns:
-                gdf[col] = "Tidak Dikenal"
-        
-        # Cache hasil
+        # Cache the result
         _kkprl_cache = gdf
         logger.info(f"Successfully loaded {len(gdf)} KKPRL features")
 
@@ -85,7 +72,10 @@ def load_kkprl_json() -> Optional[gpd.GeoDataFrame]:
 
 def get_kkprl_metadata() -> dict:
     """
-    Get metadata tentang KKPRL data.
+    Get metadata about KKPRL data.
+
+    Returns:
+        Dictionary containing metadata
     """
     gdf = load_kkprl_json()
     if gdf is None:
@@ -95,13 +85,5 @@ def get_kkprl_metadata() -> dict:
         "status": "success",
         "total_features": len(gdf),
         "columns": list(gdf.columns),
-        "crs": str(gdf.crs),
-        "bounds": gdf.total_bounds.tolist() if not gdf.empty else []
+        "crs": str(gdf.crs)
     }
-
-def clear_kkprl_cache():
-    """Bersihkan cache KKPRL"""
-    global _kkprl_cache
-    _kkprl_cache = None
-    load_kkprl_json.cache_clear()
-    logger.info("KKPRL cache cleared")
