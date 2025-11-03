@@ -52,6 +52,10 @@ def create_polygon_gdf(coordinates: List[Dict]) -> gpd.GeoDataFrame:
     poly = Polygon(coords)
     return gpd.GeoDataFrame(pd.DataFrame({"id": ["polygon_1"]}), geometry=[poly], crs="EPSG:4326")
 
+# Tambahkan di bawah definisi fungsi create_point_gdf
+create_point_geodataframe = create_point_gdf
+create_polygon_geodataframe = create_polygon_gdf
+
 # ============================================================
 # 3️⃣ ANALISIS OVERLAP — DENGAN PREPARED GEOMETRIES
 # ============================================================
