@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import { useDropzone } from "react-dropzone";
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup } from "react-leaflet";
@@ -42,6 +42,20 @@ const Home = () => {
     maxFiles: 1,
   });
 
+  const [kkprlData, setKkprlData] = useState(null);
+
+const fetchKkprlData = async () => {
+  try {
+    const response = await axios.get(`${API}/kkprl-geojson`);
+    setKkprlData(response.data);
+  } catch (error) {
+    console.error("Gagal memuat data KKPRL:", error);
+  }
+};
+
+useEffect(() => {
+  fetchKkprlData();
+}, []);
 
   const handleAnalyze = async () => {
     if (!file) {
@@ -355,21 +369,25 @@ const Home = () => {
                         url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
                         attribution='Imagery © Google'
                       />
-                      {result.geojson && <GeoJSON data={result.geojson} />}
-                      {result.geometry_type === "Point" &&
-                        result.coordinates.map((coord, idx) => (
-                          <Marker key={idx} position={[coord.latitude, coord.longitude]}>
-                            <Popup>
-                              <div className="text-sm">
-                                <strong>ID:</strong> {coord.id}
-                                <br />
-                                <strong>Lat:</strong> {coord.latitude.toFixed(6)}
-                                <br />
-                                <strong>Lng:</strong> {coord.longitude.toFixed(6)}
-                              </div>
-                            </Popup>
-                          </Marker>
-                        ))}
+                        )}
+
+					  {/* Layer hasil analisis */}
+					  {result.geojson && <GeoJSON data={result.geojson} />}
+					
+					  {result.geometry_type === "Point" &&
+					    result.coordinates.map((coord, idx) => (
+					      <Marker key={idx} position={[coord.latitude, coord.longitude]}>
+					        <Popup>
+					          <div className="text-sm">
+					            <strong>ID:</strong> {coord.id}
+					            <br />
+					            <strong>Lat:</strong> {coord.latitude.toFixed(6)}
+					            <br />
+					            <strong>Lng:</strong> {coord.longitude.toFixed(6)}
+					          </div>
+					        </Popup>
+					      </Marker>
+					    ))}
                     </MapContainer>
                   </div>
                 </CardContent>
