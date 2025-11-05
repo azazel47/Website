@@ -9,8 +9,8 @@ ARCGIS_USER = os.getenv("ARCGIS_USERNAME")
 ARCGIS_PASS = os.getenv("ARCGIS_PASSWORD")
 
 def get_arcgis_token() -> str:
-    """Mendapatkan token dari ArcGIS Server (jika butuh login)"""
-    token_url = ARCGIS_URL.replace("/MapServer", "/generateToken")
+    """Ambil token dari ArcGIS Server"""
+    token_url = ARCGIS_URL.split("/MapServer")[0] + "/generateToken"
     payload = {
         "username": ARCGIS_USER,
         "password": ARCGIS_PASS,
@@ -20,8 +20,13 @@ def get_arcgis_token() -> str:
 
     try:
         r = requests.post(token_url, data=payload, verify=False)
+        r.raise_for_status()
         data = r.json()
-        return data.get("token")
+        if "token" in data:
+            return data["token"]
+        else:
+            print("❌ Gagal ambil token:", data)
+            return None
     except Exception as e:
-        print("❌ Gagal mendapatkan token:", e)
+        print(f"❌ Error token request: {e}")
         return None
