@@ -352,7 +352,7 @@ const Home = () => {
                       style={{ height: "100%", width: "100%" }}
                     >
                       <TileLayer
-                        url={`${BACKEND_URL}/api/proxy/arcgis?x={x}&y={y}&z={z}`}
+                        url={`https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer/tile/{z}/{y}/{x}`}
                         attribution='KKPRL'
                       />
                       {result.geojson && <GeoJSON data={result.geojson} />}
