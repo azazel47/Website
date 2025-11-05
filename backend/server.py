@@ -34,7 +34,6 @@ from utils.spatial_analysis import (
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-
 mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get("DB_NAME")]
@@ -42,9 +41,6 @@ db = client[os.environ.get("DB_NAME")]
 ARCGIS_BASE_URL = os.getenv("ARCGIS_BASE_URL", "https://arcgis.ruanglaut.id/arcgis")
 ARCGIS_USERNAME = os.getenv("ARCGIS_USERNAME", "admin")
 ARCGIS_PASSWORD = os.getenv("ARCGIS_PASSWORD", "password")
-print("DEBUG ARCGIS_BASE_URL:", ARCGIS_BASE_URL)
-print("DEBUG ARCGIS_BASE_URL:", os.getenv("ARCGIS_BASE_URL"))
-print("DEBUG ARCGIS_USERNAME:", os.getenv("ARCGIS_USERNAME"))
 
 # ==== FASTAPI SETUP ====
 app = FastAPI(title="Spatio Downloader API")
@@ -68,6 +64,32 @@ class DownloadShapefileRequest(BaseModel):
     geometry_type: str
     filename: Optional[str] = "output"
 
+
+# ==================================================================
+# 🗺️ 1️⃣ Endpoint baru: KKPRL GeoJSON dari GitHub (dengan cache)
+# ==================================================================
+@api_router.get("/kkprl")
+async def get_kkprl_data():
+    """
+    Mengambil dan mengirim GeoJSON KKPRL dari kkprl.json GitHub (cached di backend)
+    """
+    try:
+        logger.info("Memuat data KKPRL dari cache atau GitHub...")
+        gdf = load_kkprl_json()
+        if gdf is None or gdf.empty:
+            raise HTTPException(status_code=500, detail="Gagal memuat data KKPRL")
+
+        geojson = json.loads(gdf.to_json())
+        return JSONResponse(content={"success": True, "data": geojson})
+    except Exception as e:
+        logger.error(f"Gagal mengambil KKPRL JSON: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# ==================================================================
+# 🧭 2️⃣ Token & Proxy ArcGIS (dipertahankan untuk fallback)
+# ==================================================================
 @app.get("/api/arcgis-token")
 def get_arcgis_token():
     ARCGIS_BASE_URL = os.getenv("ARCGIS_BASE_URL")
@@ -79,7 +101,7 @@ def get_arcgis_token():
         "username": ARCGIS_USERNAME,
         "password": ARCGIS_PASSWORD,
         "client": "referer",
-        "referer": "https://perpetual-consideration-production.up.railway.app",  # domain frontend kamu
+        "referer": "https://perpetual-consideration-production.up.railway.app",
         "f": "json",
         "expiration": 60
     }
@@ -92,18 +114,13 @@ def get_arcgis_token():
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# ==== PROXY UNTUK ARCGIS MAP SERVICE ====
 @app.get("/api/proxy/arcgis/{z}/{x}/{y}.png")
 def proxy_arcgis(z: int, x: int, y: int):
-
-    # Ambil token baru
     token_data = get_arcgis_token()
     if not token_data.get("success"):
         return token_data
 
     token = token_data["data"]["token"]
-
-    # Ganti URL ini dengan URL layer kamu (contoh: KKPRL/MapServer)
     arcgis_tile_url = (
         f"https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer/tile/{z}/{y}/{x}?token={token}"
     )
@@ -111,7 +128,11 @@ def proxy_arcgis(z: int, x: int, y: int):
     res = requests.get(arcgis_tile_url, verify=False)
     return Response(res.content, media_type="image/png")
 
-# ==== SHAPEFILE DOWNLOAD ====
+
+
+# ==================================================================
+# 📦 3️⃣ Endpoint Download Shapefile
+# ==================================================================
 @api_router.post("/download-shapefile")
 async def download_shapefile(request: DownloadShapefileRequest):
     try:
@@ -137,12 +158,10 @@ async def download_shapefile(request: DownloadShapefileRequest):
         base = os.path.join(tmpdir, filename)
         gdf.to_file(base + ".shp", driver="ESRI Shapefile")
 
-        # tulis .prj manual
         crs = CRS.from_epsg(4326)
         with open(base + ".prj", "w") as f:
             f.write(crs.to_wkt())
 
-        # zip
         zip_path = base + ".zip"
         with zipfile.ZipFile(zip_path, "w") as zipf:
             for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
@@ -155,7 +174,11 @@ async def download_shapefile(request: DownloadShapefileRequest):
         logger.error(e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==== ANALISIS KOORDINAT ====
+
+
+# ==================================================================
+# 📍 4️⃣ Analisis Koordinat + Overlay KKPRL
+# ==================================================================
 @api_router.post("/analyze-coordinates")
 async def analyze_coordinates(file: UploadFile = File(...), format_type: str = Query(...), geometry_type: str = Query(...)):
     try:
@@ -177,8 +200,14 @@ async def analyze_coordinates(file: UploadFile = File(...), format_type: str = Q
         gdf = create_point_geodataframe(coords) if geometry_type == "Point" else create_polygon_geodataframe(coords)
         geojson = json.loads(gdf.to_json())
 
+        # Ambil KKPRL dari cache (kkprl.json)
         kkprl_gdf = load_kkprl_json()
-        overlap_analysis = analyze_point_overlap(gdf, kkprl_gdf) if geometry_type == "Point" else analyze_polygon_overlap(gdf, kkprl_gdf)
+
+        overlap_analysis = (
+            analyze_point_overlap(gdf, kkprl_gdf)
+            if geometry_type == "Point"
+            else analyze_polygon_overlap(gdf, kkprl_gdf)
+        )
         overlap_12mil = analyze_overlap_12mil(gdf)
         overlap_kawasan = analyze_overlap_kawasan(gdf)
 
@@ -195,7 +224,11 @@ async def analyze_coordinates(file: UploadFile = File(...), format_type: str = Q
         logger.error(e, exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-# ==== APP SETUP ====
+
+
+# ==================================================================
+# ⚙️ 5️⃣ Setup Router & CORS
+# ==================================================================
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
