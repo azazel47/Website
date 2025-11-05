@@ -93,11 +93,8 @@ def get_arcgis_token():
         return {"success": False, "error": str(e)}
 
 # ==== PROXY UNTUK ARCGIS MAP SERVICE ====
-@app.get("/api/proxy/arcgis")
-def proxy_arcgis(request: Request):
-    x = request.query_params.get("x")
-    y = request.query_params.get("y")
-    z = request.query_params.get("z")
+@app.get("/api/proxy/arcgis/{z}/{x}/{y}.png")
+def proxy_arcgis(z: int, x: int, y: int):
 
     # Ambil token baru
     token_data = get_arcgis_token()
