@@ -93,21 +93,23 @@ def get_arcgis_token():
         return {"success": False, "error": str(e)}
 
 # ==== PROXY UNTUK ARCGIS MAP SERVICE ====
-@api_router.get("/proxy/arcgis")
-def proxy_arcgis(x: int, y: int, z: int):
-    """Proxy untuk ambil tile dari ArcGIS MapServer"""
-    try:
-        token_data = get_arcgis_token()
-        token = token_data.get("token") if isinstance(token_data, dict) else token_data
-        arcgis_tile_url = f"{ARCGIS_URL}/rest/services/KKPRL/KKPRL/MapServer/tile/{z}/{y}/{x}?token={token}"
+@app.get("/api/arcgis-proxy")
+def proxy_arcgis(request: Request):
+    target_url = request.query_params.get("url")
+    if not target_url:
+        return {"success": False, "error": "Missing 'url' parameter"}
 
-        resp = requests.get(arcgis_tile_url, verify=False, timeout=10)
-        if resp.status_code == 200:
-            return StreamingResponse(BytesIO(resp.content), media_type="image/png")
-        else:
-            raise HTTPException(status_code=resp.status_code, detail=f"Gagal ambil tile dari ArcGIS: {resp.status_code}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # Ambil token baru otomatis
+    token_data = get_arcgis_token()
+    if not token_data.get("success"):
+        return token_data
+
+    token = token_data["data"]["token"]
+
+    # Proxy request ke ArcGIS dengan token
+    proxied_url = f"{target_url}?f=json&token={token}"
+    res = requests.get(proxied_url, verify=False)
+    return res.json()
 
 # ==== SHAPEFILE DOWNLOAD ====
 @api_router.post("/download-shapefile")
