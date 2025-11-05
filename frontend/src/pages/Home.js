@@ -291,9 +291,33 @@ const Home = () => {
                       <GeoJSON
                         data={kkprlData}
                         style={{
-                          color: "orange",
+                          color: "yellow",
                           weight: 1,
                           fillOpacity: 0.2,
+                        }}
+                        onEachFeature={(feature, layer) => {
+                          const props = feature.properties || {};
+                          // ambil beberapa kolom penting (bisa disesuaikan)
+                          const no_kkprl = props.NO_KKPRL || props.no_kkprl || "—";
+                          const nama = props.NAMA_SUBJ || props.nama_subj || props.NAMA || "—";
+                          const kegiatan = props.KEGIATAN || props.kegiatan || "—";
+                          const prov = props.PROVINSI || props.provinsi || "—";
+                    
+                          const content = `
+                            <div style="font-size:13px; line-height:1.4; color:#0ff;">
+                              <strong>NO KKPRL:</strong> ${no_kkprl}<br/>
+                              <strong>Nama:</strong> ${nama}<br/>
+                              <strong>Kegiatan:</strong> ${kegiatan}<br/>
+                              <strong>Provinsi:</strong> ${prov}
+                            </div>
+                          `;
+                          layer.bindPopup(content);
+                          layer.on("mouseover", function () {
+                            layer.setStyle({ weight: 2, fillOpacity: 0.4 });
+                          });
+                          layer.on("mouseout", function () {
+                            layer.setStyle({ weight: 1, fillOpacity: 0.2 });
+                          });
                         }}
                       />
                     )}
