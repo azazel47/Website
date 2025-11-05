@@ -352,8 +352,9 @@ const Home = () => {
                       style={{ height: "100%", width: "100%" }}
                     >
                       <TileLayer
-                        url={`${process.env.REACT_APP_BACKEND_URL}/api/proxy/arcgis?x={x}&y={y}&z={z}`}
+                        url={`${API}/proxy/arcgis?x={x}&y={y}&z={z}`}
                         attribution='KKPRL'
+						errorTileUrl="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
                       {result.geojson && <GeoJSON data={result.geojson} />}
                       {result.geometry_type === "Point" &&
