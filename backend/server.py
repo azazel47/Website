@@ -15,13 +15,15 @@ from io import BytesIO
 import tempfile
 import zipfile
 import json
+import geopandas as gpd
 
 # Import utility functions
 from utils.coordinate_converter import dms_to_dd
 from utils.kkprl_loader import load_kkprl_json, get_kkprl_metadata
 from utils.mil12_loader import load_12mil_shapefile
 from utils.kawasan_loader import load_kawasan_konservasi
-
+from fastapi.responses import FileResponse
+from shapely.geometry import Point, Polygon
 from utils.spatial_analysis import (
     create_point_geodataframe,
     create_polygon_geodataframe,
@@ -52,7 +54,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # Define Models
 class StatusCheck(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -69,7 +70,51 @@ class DownloadShapefileRequest(BaseModel):
     geometry_type: str
     filename: Optional[str] = "output"
 
+@api_router.post("/download-shapefile")
+async def download_shapefile(request: DownloadShapefileRequest):
+    """Generate shapefile (ZIP) dari hasil analisis koordinat"""
+    try:
+        coords = request.coordinates
+        geom_type = request.geometry_type
+        filename = request.filename or "hasil_analisis"
 
+        if not coords or len(coords) == 0:
+            raise HTTPException(status_code=400, detail="Tidak ada data koordinat")
+
+        # Buat GeoDataFrame dari koordinat
+        if geom_type == "Point":
+            geometries = [Point(c["longitude"], c["latitude"]) for c in coords]
+        elif geom_type == "Polygon":
+            points = [(c["longitude"], c["latitude"]) for c in coords]
+            geometries = [Polygon(points)]
+        else:
+            raise HTTPException(status_code=400, detail="geometry_type tidak valid")
+
+        gdf = gpd.GeoDataFrame(coords, geometry=geometries, crs="EPSG:4326")
+
+        # Simpan shapefile ke folder sementara
+        tmpdir = tempfile.mkdtemp()
+        shp_path = os.path.join(tmpdir, f"{filename}.shp")
+        gdf.to_file(shp_path)
+
+        # Zip semua file shapefile
+        zip_path = os.path.join(tmpdir, f"{filename}.zip")
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+            for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
+                f = os.path.join(tmpdir, f"{filename}{ext}")
+                if os.path.exists(f):
+                    zipf.write(f, arcname=os.path.basename(f))
+
+        return FileResponse(
+            zip_path,
+            media_type="application/zip",
+            filename=f"{filename}.zip",
+        )
+
+    except Exception as e:
+        logger.error(f"Gagal membuat shapefile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
+        
 # Routes
 @api_router.get("/")
 async def root():
