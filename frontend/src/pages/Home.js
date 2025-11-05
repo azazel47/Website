@@ -304,7 +304,7 @@ const Home = () => {
                           const prov = props.PROVINSI || props.provinsi || "—";
                     
                           const content = `
-                            <div style="font-size:13px; line-height:1.4; color:#0ff;">
+                            <div style="font-size:13px; line-height:1.4; color:black;">
                               <strong>NO KKPRL:</strong> ${no_kkprl}<br/>
                               <strong>Nama:</strong> ${nama}<br/>
                               <strong>Kegiatan:</strong> ${kegiatan}<br/>
