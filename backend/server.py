@@ -101,6 +101,14 @@ async def kkprl_metadata():
     """Get metadata about KKPRL data"""
     return get_kkprl_metadata()
     
+@api_router.get("/kkprl-geojson")
+async def get_kkprl_geojson():
+    """Return KKPRL data as GeoJSON"""
+    gdf = load_kkprl_json()
+    if gdf is None:
+        raise HTTPException(status_code=404, detail="KKPRL data not available")
+    return json.loads(gdf.to_json())    
+    
 @api_router.post("/analyze-coordinates")
 async def analyze_coordinates(
     file: UploadFile = File(...),
