@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import axios from "axios";
 import { useDropzone } from "react-dropzone";
 import {
@@ -7,7 +7,6 @@ import {
   GeoJSON,
   Marker,
   Popup,
-  useMap,
 } from "react-leaflet";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
@@ -33,31 +32,62 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import * as EL from "esri-leaflet";
-
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// Komponen untuk menambahkan Layer ArcGIS RuangLaut (KKPRL)
-const ArcGISLayers = () => {
-  const map = useMap();
+/**
+ * 🔹 Komponen untuk menampilkan layer KKPRL langsung dari JSON
+ */
+const KKPRLLayer = () => {
+  const [kkprlData, setKkprlData] = useState(null);
 
-  useState(() => {
-    const kkprlLayer = EL.dynamicMapLayer({
-      url: "https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer",
-      opacity: 0.8,
-    }).addTo(map);
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Ambil GeoJSON dari GitHub atau dari backend
+        const response = await axios.get(
+          "https://raw.githubusercontent.com/azazel47/Verdok/main/kkprl.json"
+        );
 
-    return () => {
-      map.removeLayer(kkprlLayer);
+        // Pastikan formatnya sesuai GeoJSON
+        const data = response.data;
+        if (data && data.features) {
+          setKkprlData(data);
+        } else {
+          toast.error("Format KKPRL JSON tidak valid");
+        }
+      } catch (error) {
+        console.error("Gagal memuat KKPRL:", error);
+        toast.error("Gagal memuat layer KKPRL");
+      }
     };
-  }, [map]);
 
-  return null;
+    fetchData();
+  }, []);
+
+  if (!kkprlData) return null;
+
+  return (
+    <GeoJSON
+      data={kkprlData}
+      style={{
+        color: "#00ffff",
+        weight: 1,
+        fillOpacity: 0.3,
+      }}
+      onEachFeature={(feature, layer) => {
+        const props = feature.properties || {};
+        let popupContent = "<strong>KKPRL Feature</strong><br/>";
+        Object.keys(props).forEach((key) => {
+          popupContent += `<strong>${key}:</strong> ${props[key]}<br/>`;
+        });
+        layer.bindPopup(popupContent);
+      }}
+    />
+  );
 };
 
 const Home = () => {
@@ -158,7 +188,6 @@ const Home = () => {
     <>
       <div className="bg-pattern" />
       <div className="relative z-10 min-h-screen p-4 sm:p-6 lg:p-8">
-        {/* Header */}
         <header className="mb-8 text-center">
           <div className="inline-block mb-4">
             <MapIcon
@@ -175,7 +204,6 @@ const Home = () => {
         </header>
 
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Upload Section */}
           <Card className="glass glow-hover border-cyan-500/30">
             <CardHeader>
               <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
@@ -188,7 +216,6 @@ const Home = () => {
             </CardHeader>
 
             <CardContent className="space-y-6">
-              {/* Dropzone */}
               <div
                 {...getRootProps()}
                 className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
@@ -220,7 +247,6 @@ const Home = () => {
                 )}
               </div>
 
-              {/* Settings */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-cyan-200">
@@ -255,7 +281,6 @@ const Home = () => {
                 </div>
               </div>
 
-              {/* Buttons */}
               <div className="flex flex-col md:flex-row gap-3">
                 <Button
                   onClick={handleAnalyze}
@@ -283,7 +308,6 @@ const Home = () => {
             </CardContent>
           </Card>
 
-          {/* Hasil Analisis */}
           {result && (
             <Card className="glass glow-hover border-cyan-500/30">
               <CardHeader>
@@ -302,19 +326,18 @@ const Home = () => {
                     style={{ height: "100%", width: "100%" }}
                     whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
                   >
-                    {/* Basemap */}
                     <TileLayer
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       attribution="© OpenStreetMap contributors"
                     />
 
-                    {/* Layer ArcGIS Ruanglaut */}
-                    <ArcGISLayers />
+                    {/* 🔹 Layer KKPRL langsung dari JSON */}
+                    <KKPRLLayer />
 
-                    {/* GeoJSON hasil analisis */}
+                    {/* 🔹 GeoJSON hasil analisis */}
                     {result.geojson && <GeoJSON data={result.geojson} />}
 
-                    {/* Marker koordinat */}
+                    {/* 🔹 Marker jika geometry_type adalah Point */}
                     {result.geometry_type === "Point" &&
                       result.coordinates.map((coord, idx) => (
                         <Marker
@@ -338,7 +361,6 @@ const Home = () => {
             </Card>
           )}
 
-          {/* Download Button */}
           {result && (
             <Button
               onClick={handleDownload}
@@ -358,7 +380,6 @@ const Home = () => {
           )}
         </div>
 
-        {/* Footer */}
         <footer className="mt-12 text-center text-cyan-100/50 text-sm">
           <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
         </footer>
