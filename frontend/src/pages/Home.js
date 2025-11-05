@@ -37,7 +37,6 @@ import { Badge } from "@/components/ui/badge";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import * as EL from "esri-leaflet";
-import L from "leaflet";
 
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
