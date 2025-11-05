@@ -38,9 +38,10 @@ mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get("DB_NAME")]
 
-ARCGIS_BASE_URL = os.environ.get("ARCGIS_BASE_URL")
-ARCGIS_USERNAME = os.environ.get("ARCGIS_USERNAME")
-ARCGIS_PASSWORD = os.environ.get("ARCGIS_PASSWORD")
+ARCGIS_BASE_URL = os.getenv("ARCGIS_BASE_URL", "https://arcgis.ruanglaut.id/arcgis")
+ARCGIS_USERNAME = os.getenv("ARCGIS_USERNAME", "admin")
+ARCGIS_PASSWORD = os.getenv("ARCGIS_PASSWORD", "password")
+
 
 # ==== FASTAPI SETUP ====
 app = FastAPI(title="Spatio Downloader API")
