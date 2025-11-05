@@ -290,49 +290,61 @@ const Home = () => {
                     {kkprlData && (
                       <GeoJSON
                         data={kkprlData}
-                        style={{
-                          color: "yellow",
-                          weight: 1,
-                          fillOpacity: 0.2,
+                        style={(feature) => {
+                          const jenis = feature.properties?.["Jenis KKPRL"] || feature.properties?.JENIS_KKPRL || "";
+                    
+                          // === Jenis 1: PEMANFAATAN ===
+                          if (jenis.toLowerCase().includes("PERSETUJUAN")) {
+                            return {
+                              color: "#EEF211",        // oranye terang
+                              weight: 2,
+                              fillColor: "#EEF211",    // oranye lembut
+                              fillOpacity: 0.25,
+                              dashArray: "5, 2",       // pola garis putus-putus halus
+                            };
+                          }
+                    
+                          // === Jenis 2: REKLAMASI ===
+                          if (jenis.toLowerCase().includes("KONFIRMASI")) {
+                            return {
+                              color: "#F21111",        // hijau
+                              weight: 2,
+                              fillColor: "#F21111",    // hijau lembut
+                              fillOpacity: 0.25,
+                              dashArray: "",           // garis solid
+                            };
+                          }
+                    
+                          // === Default (tidak ada Jenis) ===
+                          return {
+                            color: "#eab308",          // kuning
+                            weight: 1,
+                            fillOpacity: 0.15,
+                            dashArray: "1,3",
+                          };
                         }}
                         onEachFeature={(feature, layer) => {
                           const props = feature.properties || {};
-                          // ambil beberapa kolom penting (bisa disesuaikan)
                           const no_kkprl = props.NO_KKPRL || props.no_kkprl || "—";
-                          const nama = props.NAMA_SUBJ || props.nama_subj || props.NAMA || "—";
+                          const nama = props.NAMA_SUBJ || props.nama_subj || "—";
+                          const jenis = props.JENIS_KKPRL || props["Jenis KKPRL"] || "—";
                           const kegiatan = props.KEGIATAN || props.kegiatan || "—";
                           const prov = props.PROVINSI || props.provinsi || "—";
                     
-                          const content = `
-                            <div style="font-size:13px; line-height:1.4; color:black;">
+                          const popupContent = `
+                            <div style="font-size:13px; line-height:1.4; color:#0ff;">
                               <strong>NO KKPRL:</strong> ${no_kkprl}<br/>
                               <strong>Nama:</strong> ${nama}<br/>
+                              <strong>Jenis:</strong> ${jenis}<br/>
                               <strong>Kegiatan:</strong> ${kegiatan}<br/>
                               <strong>Provinsi:</strong> ${prov}
                             </div>
                           `;
-                          layer.bindPopup(content);
-                          layer.on("mouseover", function () {
-                            layer.setStyle({ weight: 2, fillOpacity: 0.4 });
-                          });
-                          layer.on("mouseout", function () {
-                            layer.setStyle({ weight: 1, fillOpacity: 0.2 });
-                          });
+                          layer.bindPopup(popupContent);
                         }}
                       />
                     )}
 
-                    {/* === Layer hasil analisis === */}
-                    {result.geojson && (
-                      <GeoJSON
-                        data={result.geojson}
-                        style={{
-                          color: "#00ffff",
-                          weight: 2,
-                          fillOpacity: 0.5,
-                        }}
-                      />
-                    )}
 
                     {/* === Titik koordinat === */}
                     {result.geometry_type === "Point" &&
