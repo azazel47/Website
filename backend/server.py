@@ -69,7 +69,7 @@ class DownloadShapefileRequest(BaseModel):
 # ==== GENERATE ARCGIS TOKEN ====
 @app.get("/api/arcgis-token")
 def get_arcgis_token():
-    token_url = f"{ARCGIS_BASE_URL}/sharing/rest/generateToken"
+    token_url = f"{ARCGIS_BASE_URL}/tokens/generateToken"
 
     payload = {
         "username": ARCGIS_USERNAME,
