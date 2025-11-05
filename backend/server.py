@@ -87,23 +87,20 @@ def arcgis_token():
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==== PROXY UNTUK ARCGIS MAP SERVICE ====
-@api_router.get("/arcgis-proxy")
-def proxy_arcgis(url: str, token: Optional[str] = None):
-    """
-    Proxy permintaan ke ArcGIS Map Service pribadi agar React tidak kena CORS.
-    Contoh panggilan dari frontend:
-    /api/arcgis-proxy?url=https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer/export&token=XXXX
-    """
+@api_router.get("/proxy/arcgis")
+def proxy_arcgis(x: int, y: int, z: int):
+    """Proxy untuk ambil tile dari ArcGIS MapServer"""
     try:
-        headers = {"User-Agent": "FastAPI-ArcGIS-Proxy"}
-        params = {"f": "json"}
-        if token:
-            params["token"] = token
+        token_data = get_arcgis_token()
+        token = token_data.get("token") if isinstance(token_data, dict) else token_data
+        arcgis_tile_url = f"{ARCGIS_URL}/rest/services/KKPRL/KKPRL/MapServer/tile/{z}/{y}/{x}?token={token}"
 
-        r = requests.get(url, headers=headers, params=params, verify=False)
-        return JSONResponse(content=r.json())
+        resp = requests.get(arcgis_tile_url, verify=False, timeout=10)
+        if resp.status_code == 200:
+            return StreamingResponse(BytesIO(resp.content), media_type="image/png")
+        else:
+            raise HTTPException(status_code=resp.status_code, detail=f"Gagal ambil tile dari ArcGIS: {resp.status_code}")
     except Exception as e:
-        logger.error(f"Proxy ArcGIS error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==== SHAPEFILE DOWNLOAD ====
