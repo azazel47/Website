@@ -43,6 +43,8 @@ ARCGIS_BASE_URL = os.getenv("ARCGIS_BASE_URL", "https://arcgis.ruanglaut.id/arcg
 ARCGIS_USERNAME = os.getenv("ARCGIS_USERNAME", "admin")
 ARCGIS_PASSWORD = os.getenv("ARCGIS_PASSWORD", "password")
 print("DEBUG ARCGIS_BASE_URL:", ARCGIS_BASE_URL)
+print("DEBUG ARCGIS_BASE_URL:", os.getenv("ARCGIS_BASE_URL"))
+print("DEBUG ARCGIS_USERNAME:", os.getenv("ARCGIS_USERNAME"))
 
 # ==== FASTAPI SETUP ====
 app = FastAPI(title="Spatio Downloader API")
