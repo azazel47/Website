@@ -12,16 +12,13 @@ import uuid
 from datetime import datetime, timezone
 import pandas as pd
 from io import BytesIO
-import tempfile
-import zipfile
 import json
 
-# Import utility functions
+# === Import utils ===
 from utils.coordinate_converter import dms_to_dd
 from utils.kkprl_loader import load_kkprl_json, get_kkprl_metadata
 from utils.mil12_loader import load_12mil_shapefile
 from utils.kawasan_loader import load_kawasan_konservasi
-
 from utils.spatial_analysis import (
     create_point_geodataframe,
     create_polygon_geodataframe,
@@ -31,32 +28,23 @@ from utils.spatial_analysis import (
     analyze_overlap_kawasan,
 )
 
+# === Setup ===
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+mongo_url = os.environ.get("MONGO_URL")
+client = AsyncIOMotorClient(mongo_url) if mongo_url else None
+db = client[os.environ.get("DB_NAME", "test")] if client else None
 
-# Create the main app without a prefix
-app = FastAPI()
-
-# Create a router with the /api prefix
+app = FastAPI(title="Spatio Downloader API")
 api_router = APIRouter(prefix="/api")
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# Define Models
+# === Models ===
 class StatusCheck(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     client_name: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -69,134 +57,103 @@ class DownloadShapefileRequest(BaseModel):
     geometry_type: str
     filename: Optional[str] = "output"
 
-
-# Routes
+# === Routes ===
 @api_router.get("/")
 async def root():
     return {"message": "Spatio Downloader API - Ready"}
 
+@api_router.get("/kkprl-metadata")
+async def kkprl_metadata():
+    """Metadata tentang data KKPRL"""
+    return get_kkprl_metadata()
+
+@api_router.get("/kkprl-geojson")
+async def get_kkprl_geojson():
+    """Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
+    gdf = load_kkprl_json()
+    if gdf is None:
+        raise HTTPException(status_code=404, detail="KKPRL data not available")
+    return json.loads(gdf.to_json())
+
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
+    status_obj = StatusCheck(client_name=input.client_name)
     doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
+    doc["timestamp"] = doc["timestamp"].isoformat()
+    if db:
+        await db.status_checks.insert_one(doc)
     return status_obj
 
 @api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks():
+    if not db:
+        return []
     status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
     for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
+        if isinstance(check["timestamp"], str):
+            check["timestamp"] = datetime.fromisoformat(check["timestamp"])
     return status_checks
 
-@api_router.get("/kkprl-metadata")
-async def kkprl_metadata():
-    """Get metadata about KKPRL data"""
-    return get_kkprl_metadata()
-    
-@api_router.get("/kkprl-geojson")
-async def get_kkprl_geojson():
-    """Return KKPRL data as GeoJSON"""
-    gdf = load_kkprl_json()
-    if gdf is None:
-        raise HTTPException(status_code=404, detail="KKPRL data not available")
-    return json.loads(gdf.to_json())    
-    
 @api_router.post("/analyze-coordinates")
 async def analyze_coordinates(
     file: UploadFile = File(...),
     format_type: str = Query(..., description="OSS-UTM or Decimal-Degree"),
-    geometry_type: str = Query(..., description="Point or Polygon")
+    geometry_type: str = Query(..., description="Point or Polygon"),
 ):
-    """Analyze coordinates from Excel file"""
+    """Analisis koordinat dari file Excel"""
     try:
-        # Read Excel file
         contents = await file.read()
         if len(contents) == 0:
-            raise HTTPException(status_code=400, detail="File is empty")
-        
+            raise HTTPException(status_code=400, detail="File kosong")
+
         df = pd.read_excel(BytesIO(contents))
-        
         if df.empty:
-            raise HTTPException(status_code=400, detail="Excel file contains no data")
-        
-        # Coordinate conversion based on format_type
+            raise HTTPException(status_code=400, detail="Tidak ada data dalam file")
+
+        # === Konversi Koordinat ===
         if format_type == "OSS-UTM":
-            required_cols = ['bujur_derajat', 'bujur_menit', 'bujur_detik', 'BT_BB',
-                             'lintang_derajat', 'lintang_menit', 'lintang_detik', 'LU_LS']
-            missing_cols = [col for col in required_cols if col not in df.columns]
-            if missing_cols:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Missing columns for OSS-UTM format: {missing_cols}"
-                )
-            
-            # Convert DMS to DD
-            df['longitude'] = df.apply(
-                lambda row: dms_to_dd(
-                    row['bujur_derajat'], 
-                    row['bujur_menit'], 
-                    row['bujur_detik'], 
-                    row['BT_BB']
-                ), 
-                axis=1
+            required_cols = [
+                "bujur_derajat",
+                "bujur_menit",
+                "bujur_detik",
+                "BT_BB",
+                "lintang_derajat",
+                "lintang_menit",
+                "lintang_detik",
+                "LU_LS",
+            ]
+            missing = [c for c in required_cols if c not in df.columns]
+            if missing:
+                raise HTTPException(status_code=400, detail=f"Kolom hilang: {missing}")
+
+            df["longitude"] = df.apply(
+                lambda r: dms_to_dd(r["bujur_derajat"], r["bujur_menit"], r["bujur_detik"], r["BT_BB"]), axis=1
             )
-            df['latitude'] = df.apply(
-                lambda row: dms_to_dd(
-                    row['lintang_derajat'], 
-                    row['lintang_menit'], 
-                    row['lintang_detik'], 
-                    row['LU_LS']
-                ), 
-                axis=1
+            df["latitude"] = df.apply(
+                lambda r: dms_to_dd(r["lintang_derajat"], r["lintang_menit"], r["lintang_detik"], r["LU_LS"]), axis=1
             )
         elif format_type == "Decimal-Degree":
-            if 'x' not in df.columns or 'y' not in df.columns:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="Decimal-Degree format requires 'x' and 'y' columns"
-                )
-            df = df.rename(columns={'x': 'longitude', 'y': 'latitude'})
+            if "x" not in df.columns or "y" not in df.columns:
+                raise HTTPException(status_code=400, detail="Kolom 'x' dan 'y' wajib ada")
+            df = df.rename(columns={"x": "longitude", "y": "latitude"})
         else:
-            raise HTTPException(
-                status_code=400, 
-                detail="format_type must be 'OSS-UTM' or 'Decimal-Degree'"
-            )
-        
-        # Ensure id column exists
-        if 'id' not in df.columns:
-            df['id'] = [f"point_{i+1}" for i in range(len(df))]
-        
-        # Limit to 300 rows
-        if len(df) > 300:
-            logger.warning(f"Data truncated from {len(df)} to 300 rows")
-            df = df.head(300)
-        
-        # Convert to list of dicts
-        coordinates = df[['id', 'longitude', 'latitude']].to_dict('records')
-        
-        # Create GeoDataFrame based on geometry_type
+            raise HTTPException(status_code=400, detail="format_type tidak valid")
+
+        if "id" not in df.columns:
+            df["id"] = [f"point_{i+1}" for i in range(len(df))]
+
+        df = df.head(300)
+        coordinates = df[["id", "longitude", "latitude"]].to_dict("records")
+
+        # === Buat GeoDataFrame ===
         if geometry_type == "Point":
             gdf = create_point_geodataframe(coordinates)
-        elif geometry_type == "Polygon":
-            gdf = create_polygon_geodataframe(coordinates)
         else:
-            raise HTTPException(
-                status_code=400, 
-                detail="geometry_type must be 'Point' or 'Polygon'"
-            )
-        
-        # Convert to GeoJSON (for frontend)
+            gdf = create_polygon_geodataframe(coordinates)
+
         geojson = json.loads(gdf.to_json())
-        
-        # === KKPRL Overlap Analysis ===
+
+        # === Analisis Overlap KKPRL ===
         kkprl_gdf = load_kkprl_json()
         if kkprl_gdf is not None:
             if geometry_type == "Point":
@@ -204,60 +161,39 @@ async def analyze_coordinates(
             else:
                 overlap_analysis = analyze_polygon_overlap(gdf, kkprl_gdf)
         else:
-            overlap_analysis = {
-                "has_overlap": False,
-                "message": "KKPRL data not available"
-            }
-        
-        # === Analisis 12 Mil Laut ===
-        # === Analisis 12 Mil Laut ===
+            overlap_analysis = {"has_overlap": False, "message": "KKPRL tidak tersedia"}
+
+        # === Analisis 12 Mil Laut dan Kawasan Konservasi ===
         overlap_12mil = analyze_overlap_12mil(gdf)
-        #mil12_gdf = load_12mil_shapefile()
-        #if mil12_gdf is not None:
-            # call the helper that returns {"has_overlap", "wp_list", "message", ...}
-            #overlap_12mil = analyze_overlap_12mil(gdf, mil12_gdf)
-        #else:
-            #overlap_12mil = {"has_overlap": False, "message": "Data 12 mil laut tidak tersedia"}
-        
-        # === Analisis Kawasan Konservasi ===
         overlap_kawasan = analyze_overlap_kawasan(gdf)
-        #kawasan_gdf = load_kawasan_konservasi()
-        #if kawasan_gdf is not None:
-            #overlap_kawasan = analyze_overlap_kawasan(gdf, kawasan_gdf)
-        #else:
-            #overlap_kawasan = {"has_overlap": False, "message": "Data Kawasan Konservasi tidak tersedia"}
-    
-    # Final response
+
         return {
             "success": True,
             "coordinates": coordinates,
             "geometry_type": geometry_type,
             "geojson": geojson,
             "overlap_analysis": overlap_analysis,
-            "total_rows": len(coordinates),
             "overlap_12mil": overlap_12mil,
             "overlap_kawasan": overlap_kawasan,
+            "total_rows": len(coordinates),
         }
 
-    except pd.errors.EmptyDataError:
-        raise HTTPException(status_code=400, detail="Excel file is empty or invalid")
-    except HTTPException:
-        # re-raise FastAPI HTTPExceptions unchanged
-        raise
     except Exception as e:
-        logger.error(f"Error analyzing coordinates: {e}", exc_info=True)
+        logger.error(f"Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-# Include the router in the main app
+
+# === Register Router ===
 app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client:
+        client.close()
