@@ -99,6 +99,15 @@ def get_arcgis_token():
         logger.error(f"Error membuat token ArcGIS: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.get("/arcgis-token")
+async def arcgis_token():
+    """Ambil token ArcGIS (agar bisa load basemap pribadi)"""
+    token = get_arcgis_token()
+    if token:
+        return {"success": True, "token": token}
+    else:
+        return {"success": False, "message": "Gagal mendapatkan token dari ArcGIS Server"}
+
 # ========== ENDPOINT: Download Shapefile ==========
 @api_router.post("/download-shapefile")
 async def download_shapefile(request: DownloadShapefileRequest):
