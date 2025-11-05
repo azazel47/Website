@@ -66,27 +66,29 @@ class DownloadShapefileRequest(BaseModel):
     geometry_type: str
     filename: Optional[str] = "output"
 
-# ==== GENERATE ARCGIS TOKEN ====
 @app.get("/api/arcgis-token")
 def get_arcgis_token():
-    token_url = f"{ARCGIS_BASE_URL}/tokens/generateToken"
+    ARCGIS_BASE_URL = os.getenv("ARCGIS_BASE_URL")
+    ARCGIS_USERNAME = os.getenv("ARCGIS_USERNAME")
+    ARCGIS_PASSWORD = os.getenv("ARCGIS_PASSWORD")
 
+    token_url = f"{ARCGIS_BASE_URL}/tokens/generateToken"
     payload = {
         "username": ARCGIS_USERNAME,
         "password": ARCGIS_PASSWORD,
-        "client": "requestip",
-        "f": "json"
+        "client": "referer",
+        "referer": "https://perpetual-consideration-production.up.railway.app",  # domain frontend kamu
+        "f": "json",
+        "expiration": 60
     }
 
     try:
-        res = requests.post(token_url, data=payload, timeout=10)
-        data = res.json()
-        if "token" in data:
-            return {"success": True, "token": data["token"], "expires": data["expires"]}
-        else:
-            return {"success": False, "error": data}
+        response = requests.post(token_url, data=payload, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return {"success": True, "data": data}
     except Exception as e:
-        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+        return {"success": False, "error": str(e)}
 
 # ==== PROXY UNTUK ARCGIS MAP SERVICE ====
 @api_router.get("/proxy/arcgis")
