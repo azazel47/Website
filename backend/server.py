@@ -38,7 +38,7 @@ mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ.get("DB_NAME")]
 
-ARCGIS_URL = os.environ.get("ARCGIS_URL", "https://arcgis.ruanglaut.id/arcgis")
+ARCGIS_BASE_URL = os.environ.get("ARCGIS_BASE_URL")
 ARCGIS_USERNAME = os.environ.get("ARCGIS_USERNAME")
 ARCGIS_PASSWORD = os.environ.get("ARCGIS_PASSWORD")
 
