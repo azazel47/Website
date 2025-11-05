@@ -352,8 +352,8 @@ const Home = () => {
                       style={{ height: "100%", width: "100%" }}
                     >
                       <TileLayer
-                        url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
-                        attribution='Imagery © Google'
+                        url={`${BACKEND_URL}/api/proxy/arcgis?x={x}&y={y}&z={z}`}
+                        attribution='KKPRL'
                       />
                       {result.geojson && <GeoJSON data={result.geojson} />}
                       {result.geometry_type === "Point" &&
