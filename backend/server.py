@@ -33,6 +33,7 @@ from utils.spatial_analysis import (
 # ==== ENVIRONMENT ====
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+print("DEBUG ARCGIS_BASE_URL:", ARCGIS_BASE_URL)
 
 mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url)
