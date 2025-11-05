@@ -352,7 +352,7 @@ const Home = () => {
                       style={{ height: "100%", width: "100%" }}
                     >
                       <TileLayer
-                        url={`${API}/proxy/arcgis?x={x}&y={y}&z={z}.png`}
+                        url={`${API}/proxy/arcgis/{z}/{x}/{y}.png`}
                         attribution='KKPRL'
 						errorTileUrl="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                       />
