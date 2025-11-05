@@ -33,7 +33,7 @@ from utils.spatial_analysis import (
 # ==== ENVIRONMENT ====
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
-print("DEBUG ARCGIS_BASE_URL:", ARCGIS_BASE_URL)
+
 
 mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url)
@@ -42,7 +42,7 @@ db = client[os.environ.get("DB_NAME")]
 ARCGIS_BASE_URL = os.getenv("ARCGIS_BASE_URL", "https://arcgis.ruanglaut.id/arcgis")
 ARCGIS_USERNAME = os.getenv("ARCGIS_USERNAME", "admin")
 ARCGIS_PASSWORD = os.getenv("ARCGIS_PASSWORD", "password")
-
+print("DEBUG ARCGIS_BASE_URL:", ARCGIS_BASE_URL)
 
 # ==== FASTAPI SETUP ====
 app = FastAPI(title="Spatio Downloader API")
