@@ -36,7 +36,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "esri-leaflet";
+import * as EL from "esri-leaflet";
+import L from "leaflet";
+
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -46,12 +48,10 @@ const ArcGISLayers = () => {
   const map = useMap();
 
   useState(() => {
-    const kkprlLayer = L.esri
-      .dynamicMapLayer({
-        url: "https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer",
-        opacity: 0.8,
-      })
-      .addTo(map);
+    const kkprlLayer = EL.dynamicMapLayer({
+      url: "https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer",
+      opacity: 0.8,
+    }).addTo(map);
 
     return () => {
       map.removeLayer(kkprlLayer);
