@@ -19,6 +19,7 @@ import geopandas as gpd
 from shapely.geometry import Point, Polygon
 import requests
 from pyproj import CRS
+from utils.arcgis_loader import get_arcgis_token
 
 # Import utility functions
 from utils.coordinate_converter import dms_to_dd
