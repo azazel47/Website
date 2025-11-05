@@ -1,7 +1,14 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useDropzone } from "react-dropzone";
-import { MapContainer, GeoJSON, Marker, Popup, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  GeoJSON,
+  Marker,
+  Popup,
+  useMap,
+} from "react-leaflet";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
 import {
@@ -34,15 +41,11 @@ import "esri-leaflet";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
-// 🧩 Komponen untuk menambahkan basemap & layer ArcGIS dari ruanglaut.id
-function ArcGISLayers() {
+// Komponen untuk menambahkan Layer ArcGIS RuangLaut (KKPRL)
+const ArcGISLayers = () => {
   const map = useMap();
 
-  useEffect(() => {
-    // Basemap default dari ArcGIS
-    const basemap = L.esri.basemapLayer("Topographic").addTo(map);
-
-    // Layer KKPRL dari ArcGIS Server ruanglaut.id
+  useState(() => {
     const kkprlLayer = L.esri
       .dynamicMapLayer({
         url: "https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer",
@@ -50,15 +53,13 @@ function ArcGISLayers() {
       })
       .addTo(map);
 
-    // Hapus layer saat komponen di-unmount
     return () => {
-      map.removeLayer(basemap);
       map.removeLayer(kkprlLayer);
     };
   }, [map]);
 
   return null;
-}
+};
 
 const Home = () => {
   const [file, setFile] = useState(null);
@@ -67,6 +68,7 @@ const Home = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const mapRef = useRef();
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles?.length > 0) {
@@ -102,9 +104,7 @@ const Home = () => {
         `${API}/analyze-coordinates?format_type=${formatType}&geometry_type=${geometryType}`,
         formData,
         {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+          headers: { "Content-Type": "multipart/form-data" },
         }
       );
 
@@ -113,7 +113,9 @@ const Home = () => {
       toast.success("Analisis selesai!");
     } catch (error) {
       console.error("Error:", error);
-      toast.error(error.response?.data?.detail || "Terjadi kesalahan saat analisis");
+      toast.error(
+        error.response?.data?.detail || "Terjadi kesalahan saat analisis"
+      );
     } finally {
       setLoading(false);
     }
@@ -158,9 +160,12 @@ const Home = () => {
       <div className="bg-pattern" />
       <div className="relative z-10 min-h-screen p-4 sm:p-6 lg:p-8">
         {/* Header */}
-        <header className="mb-8 text-center" data-testid="header">
+        <header className="mb-8 text-center">
           <div className="inline-block mb-4">
-            <MapIcon className="w-16 h-16 text-cyan-400 mx-auto" strokeWidth={1.5} />
+            <MapIcon
+              className="w-16 h-16 text-cyan-400 mx-auto"
+              strokeWidth={1.5}
+            />
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 bg-clip-text text-transparent">
             Tools Verdok
@@ -170,56 +175,189 @@ const Home = () => {
           </p>
         </header>
 
-        {/* Upload Section */}
-        {/* ... (semua kode upload dan analisis kamu tetap sama) ... */}
-
-        {/* Hasil Analisis */}
-        {result && (
-          <Card className="glass glow-hover border-cyan-500/30 mt-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Upload Section */}
+          <Card className="glass glow-hover border-cyan-500/30">
             <CardHeader>
               <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
-                <MapIcon className="w-6 h-6" /> Peta Visualisasi
+                <FileSpreadsheet className="w-6 h-6" />
+                Upload & Konfigurasi
               </CardTitle>
+              <CardDescription className="text-cyan-100/60">
+                Upload file Excel dan pilih format koordinat
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="h-[500px] rounded-lg overflow-hidden">
-                <MapContainer
-                  center={[
-                    result.coordinates[0]?.latitude || 0,
-                    result.coordinates[0]?.longitude || 0,
-                  ]}
-                  zoom={15}
-                  style={{ height: "100%", width: "100%" }}
+
+            <CardContent className="space-y-6">
+              {/* Dropzone */}
+              <div
+                {...getRootProps()}
+                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all ${
+                  isDragActive
+                    ? "border-cyan-400 bg-cyan-500/10"
+                    : "border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-500/5"
+                }`}
+              >
+                <input {...getInputProps()} />
+                <Upload className="w-12 h-12 mx-auto mb-4 text-cyan-400" />
+                {file ? (
+                  <>
+                    <p className="text-cyan-100 font-medium mb-1">{file.name}</p>
+                    <p className="text-cyan-100/60 text-sm">
+                      Klik atau drag untuk mengganti file
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-cyan-100 font-medium mb-1">
+                      {isDragActive
+                        ? "Drop file di sini..."
+                        : "Drag & drop file Excel"}
+                    </p>
+                    <p className="text-cyan-100/60 text-sm">
+                      atau klik untuk memilih file (.xlsx, .xls)
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Settings */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-cyan-200">
+                    Format Koordinat
+                  </label>
+                  <Select value={formatType} onValueChange={setFormatType}>
+                    <SelectTrigger className="glass border-cyan-500/30 text-cyan-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass border-cyan-500/30">
+                      <SelectItem value="Decimal-Degree">
+                        Decimal Degree
+                      </SelectItem>
+                      <SelectItem value="OSS-UTM">OSS-UTM (DMS)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-cyan-200">
+                    Tipe Geometri
+                  </label>
+                  <Select value={geometryType} onValueChange={setGeometryType}>
+                    <SelectTrigger className="glass border-cyan-500/30 text-cyan-100">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="glass border-cyan-500/30">
+                      <SelectItem value="Point">Point</SelectItem>
+                      <SelectItem value="Polygon">Polygon</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex flex-col md:flex-row gap-3">
+                <Button
+                  onClick={handleAnalyze}
+                  disabled={!file || loading}
+                  className="flex-1 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-semibold py-6 text-lg glow"
                 >
-                  {/* Tambahkan Layer ArcGIS */}
-                  <ArcGISLayers />
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Menganalisis...
+                    </>
+                  ) : (
+                    "Analisis Koordinat"
+                  )}
+                </Button>
 
-                  {/* GeoJSON hasil analisis */}
-                  {result.geojson && <GeoJSON data={result.geojson} />}
-
-                  {/* Marker */}
-                  {result.geometry_type === "Point" &&
-                    result.coordinates.map((coord, idx) => (
-                      <Marker
-                        key={idx}
-                        position={[coord.latitude, coord.longitude]}
-                      >
-                        <Popup>
-                          <div className="text-sm">
-                            <strong>ID:</strong> {coord.id}
-                            <br />
-                            <strong>Lat:</strong> {coord.latitude.toFixed(6)}
-                            <br />
-                            <strong>Lng:</strong> {coord.longitude.toFixed(6)}
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
-                </MapContainer>
+                <Button
+                  onClick={handleReset}
+                  variant="outline"
+                  className="flex-1 border border-cyan-400/40 text-cyan-200 hover:bg-cyan-500/10 py-6 text-lg"
+                >
+                  Reset
+                </Button>
               </div>
             </CardContent>
           </Card>
-        )}
+
+          {/* Hasil Analisis */}
+          {result && (
+            <Card className="glass glow-hover border-cyan-500/30">
+              <CardHeader>
+                <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
+                  <MapIcon className="w-6 h-6" /> Peta Visualisasi
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[500px] rounded-lg overflow-hidden">
+                  <MapContainer
+                    center={[
+                      result.coordinates[0]?.latitude || 0,
+                      result.coordinates[0]?.longitude || 0,
+                    ]}
+                    zoom={12}
+                    style={{ height: "100%", width: "100%" }}
+                    whenCreated={(mapInstance) => (mapRef.current = mapInstance)}
+                  >
+                    {/* Basemap */}
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution="© OpenStreetMap contributors"
+                    />
+
+                    {/* Layer ArcGIS Ruanglaut */}
+                    <ArcGISLayers />
+
+                    {/* GeoJSON hasil analisis */}
+                    {result.geojson && <GeoJSON data={result.geojson} />}
+
+                    {/* Marker koordinat */}
+                    {result.geometry_type === "Point" &&
+                      result.coordinates.map((coord, idx) => (
+                        <Marker
+                          key={idx}
+                          position={[coord.latitude, coord.longitude]}
+                        >
+                          <Popup>
+                            <div className="text-sm">
+                              <strong>ID:</strong> {coord.id}
+                              <br />
+                              <strong>Lat:</strong> {coord.latitude.toFixed(6)}
+                              <br />
+                              <strong>Lng:</strong> {coord.longitude.toFixed(6)}
+                            </div>
+                          </Popup>
+                        </Marker>
+                      ))}
+                  </MapContainer>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Download Button */}
+          {result && (
+            <Button
+              onClick={handleDownload}
+              disabled={downloadLoading}
+              className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-400 hover:to-teal-500 text-white font-semibold py-6 text-lg glow"
+            >
+              {downloadLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Mengunduh...
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5 mr-2" /> Download Shapefile (ZIP)
+                </>
+              )}
+            </Button>
+          )}
+        </div>
 
         {/* Footer */}
         <footer className="mt-12 text-center text-cyan-100/50 text-sm">
