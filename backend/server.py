@@ -82,20 +82,30 @@ async def download_shapefile(request: DownloadShapefileRequest):
             raise HTTPException(status_code=400, detail="Tidak ada data koordinat")
 
         # Buat GeoDataFrame dari koordinat
+        df = pd.DataFrame(coords)
+
         if geom_type == "Point":
             geometries = [Point(c["longitude"], c["latitude"]) for c in coords]
         elif geom_type == "Polygon":
             points = [(c["longitude"], c["latitude"]) for c in coords]
             geometries = [Polygon(points)]
+            df = pd.DataFrame([{"id": "polygon_1"}])  # satu baris saja
         else:
             raise HTTPException(status_code=400, detail="geometry_type tidak valid")
 
-        gdf = gpd.GeoDataFrame(coords, geometry=geometries, crs="EPSG:4326")
+        gdf = gpd.GeoDataFrame(df, geometry=geometries, crs="EPSG:4326")
 
         # Simpan shapefile ke folder sementara
         tmpdir = tempfile.mkdtemp()
         shp_path = os.path.join(tmpdir, f"{filename}.shp")
-        gdf.to_file(shp_path)
+
+        from pyproj import CRS
+        gdf.to_file(shp_path, driver="ESRI Shapefile")
+
+        # tulis file .prj manual
+        crs = CRS.from_epsg(4326)
+        with open(os.path.join(tmpdir, f"{filename}.prj"), "w") as f:
+            f.write(crs.to_wkt())
 
         # Zip semua file shapefile
         zip_path = os.path.join(tmpdir, f"{filename}.zip")
@@ -105,16 +115,13 @@ async def download_shapefile(request: DownloadShapefileRequest):
                 if os.path.exists(f):
                     zipf.write(f, arcname=os.path.basename(f))
 
-        return FileResponse(
-            zip_path,
-            media_type="application/zip",
-            filename=f"{filename}.zip",
-        )
+        logger.info(f"✅ Shapefile berhasil dibuat: {zip_path}")
+        return FileResponse(zip_path, media_type="application/zip", filename=f"{filename}.zip")
 
     except Exception as e:
         logger.error(f"Gagal membuat shapefile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
-        
+      
 # Routes
 @api_router.get("/")
 async def root():
