@@ -93,23 +93,26 @@ def get_arcgis_token():
         return {"success": False, "error": str(e)}
 
 # ==== PROXY UNTUK ARCGIS MAP SERVICE ====
-@app.get("/api/arcgis-proxy")
+@app.get("/api/proxy/arcgis")
 def proxy_arcgis(request: Request):
-    target_url = request.query_params.get("url")
-    if not target_url:
-        return {"success": False, "error": "Missing 'url' parameter"}
+    x = request.query_params.get("x")
+    y = request.query_params.get("y")
+    z = request.query_params.get("z")
 
-    # Ambil token baru otomatis
+    # Ambil token baru
     token_data = get_arcgis_token()
     if not token_data.get("success"):
         return token_data
 
     token = token_data["data"]["token"]
 
-    # Proxy request ke ArcGIS dengan token
-    proxied_url = f"{target_url}?f=json&token={token}"
-    res = requests.get(proxied_url, verify=False)
-    return res.json()
+    # Ganti URL ini dengan URL layer kamu (contoh: KKPRL/MapServer)
+    arcgis_tile_url = (
+        f"https://arcgis.ruanglaut.id/arcgis/rest/services/KKPRL/KKPRL/MapServer/tile/{z}/{y}/{x}?token={token}"
+    )
+
+    res = requests.get(arcgis_tile_url, verify=False)
+    return Response(res.content, media_type="image/png")
 
 # ==== SHAPEFILE DOWNLOAD ====
 @api_router.post("/download-shapefile")
