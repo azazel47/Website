@@ -367,32 +367,110 @@ const Home = () => {
                       </Card>
                     </div>
               
-                    {/* === Peta === */}
-                    <Card className="glass glow-hover border-cyan-500/30">
-                      <CardHeader>
-                        <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
-                          <MapIcon className="w-6 h-6" /> Peta Visualisasi
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="h-[500px] rounded-lg overflow-hidden">
-                          <MapContainer
-                            center={[
-                              result.coordinates[0]?.latitude || 0,
-                              result.coordinates[0]?.longitude || 0,
-                            ]}
-                            zoom={13}
-                            style={{ height: "100%", width: "100%" }}
-                          >
-                            <TileLayer
-                              url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
-                              attribution="Imagery © Google"
-                            />
-                            {kkprlData && <GeoJSON data={kkprlData} />}
-                          </MapContainer>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      {/* === Map Section === */}
+                      <Card className="glass glow-hover border-cyan-500/30">
+                        <CardHeader>
+                          <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
+                            <MapIcon className="w-6 h-6" /> Peta Visualisasi
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="h-[500px] rounded-lg overflow-hidden">
+                            <MapContainer
+                              center={[
+                                result.coordinates[0]?.latitude || 0,
+                                result.coordinates[0]?.longitude || 0,
+                              ]}
+                              zoom={15}
+                              style={{ height: "100%", width: "100%" }}
+                            >
+                              <TileLayer
+                                url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
+                                attribution="Imagery © Google"
+                              />
+                      
+                              {/* === Layer KKPRL === */}
+                              {kkprlData && (
+                                <GeoJSON
+                                  data={kkprlData}
+                                  style={(feature) => {
+                                    const jenis =
+                                      feature.properties?.["Jenis KKPRL"] ||
+                                      feature.properties?.JENIS_KKPRL ||
+                                      "";
+                      
+                                    if (jenis.toLowerCase().includes("persetujuan")) {
+                                      return {
+                                        color: "#EEF211",
+                                        weight: 2,
+                                        fillColor: "#EEF211",
+                                        fillOpacity: 0.25,
+                                        dashArray: "5, 2",
+                                      };
+                                    }
+                      
+                                    if (jenis.toLowerCase().includes("konfirmasi")) {
+                                      return {
+                                        color: "#F21111",
+                                        weight: 2,
+                                        fillColor: "#F21111",
+                                        fillOpacity: 0.25,
+                                      };
+                                    }
+                      
+                                    return {
+                                      color: "#eab308",
+                                      weight: 1,
+                                      fillOpacity: 0.15,
+                                      dashArray: "1,3",
+                                    };
+                                  }}
+                                  onEachFeature={(feature, layer) => {
+                                    const props = feature.properties || {};
+                                    const no_kkprl = props.NO_KKPRL || props.no_kkprl || "—";
+                                    const nama = props.NAMA_SUBJ || props.nama_subj || "—";
+                                    const jenis =
+                                      props.JENIS_KKPRL || props["Jenis KKPRL"] || "—";
+                                    const kegiatan = props.KEGIATAN || props.kegiatan || "—";
+                                    const prov = props.PROVINSI || props.provinsi || "—";
+                      
+                                    const popupContent = `
+                                      <div style="font-size:13px; line-height:1.4; color:#0ff;">
+                                        <strong>NO KKPRL:</strong> ${no_kkprl}<br/>
+                                        <strong>Nama:</strong> ${nama}<br/>
+                                        <strong>Jenis:</strong> ${jenis}<br/>
+                                        <strong>Kegiatan:</strong> ${kegiatan}<br/>
+                                        <strong>Provinsi:</strong> ${prov}
+                                      </div>
+                                    `;
+                                    layer.bindPopup(popupContent);
+                                  }}
+                                />
+                              )}
+                      
+                              {/* === Titik koordinat === */}
+                              {result.geometry_type === "Point" &&
+                                result.coordinates.map((coord, idx) => (
+                                  <Marker
+                                    key={idx}
+                                    position={[coord.latitude, coord.longitude]}
+                                  >
+                                    <Popup>
+                                      <div className="text-sm">
+                                        <strong>ID:</strong> {coord.id}
+                                        <br />
+                                        <strong>Lat:</strong> {coord.latitude.toFixed(6)}
+                                        <br />
+                                        <strong>Lng:</strong> {coord.longitude.toFixed(6)}
+                                      </div>
+                                    </Popup>
+                                  </Marker>
+                                ))}
+                            </MapContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+
               
                     {/* === Tombol Download === */}
                     <Button
