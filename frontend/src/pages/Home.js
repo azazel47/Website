@@ -259,117 +259,161 @@ const Home = () => {
             </CardContent>
           </Card>
 
-          {/* === Hasil Analisis === */}
-          {result && (
-            <>
-              <Card className="glass glow-hover border-cyan-500/30">
-                <CardHeader>
-                  <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
-                    <MapIcon className="w-6 h-6" /> Peta Visualisasi
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[500px] rounded-lg overflow-hidden">
-                    <MapContainer
-                      center={[
-                        result.coordinates[0]?.latitude || 0,
-                        result.coordinates[0]?.longitude || 0,
-                      ]}
-                      zoom={15}
-                      style={{ height: "100%", width: "100%" }}
-                    >
-                      <TileLayer
-                        url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
-                        attribution="Imagery © Google"
-                      />
-
-                      {kkprlData && (
-                        <GeoJSON
-                          data={kkprlData}
-                          style={(feature) => {
-                            const jenis =
-                              feature.properties?.["Jenis KKPRL"] ||
-                              feature.properties?.JENIS_KKPRL ||
-                              "";
-                            if (jenis.toLowerCase().includes("persetujuan")) {
-                              return {
-                                color: "#EEF211",
-                                weight: 2,
-                                fillColor: "#EEF211",
-                                fillOpacity: 0.25,
-                                dashArray: "5, 2",
-                              };
-                            }
-                            if (jenis.toLowerCase().includes("konfirmasi")) {
-                              return {
-                                color: "#F21111",
-                                weight: 2,
-                                fillColor: "#F21111",
-                                fillOpacity: 0.25,
-                              };
-                            }
-                            return {
-                              color: "#eab308",
-                              weight: 1,
-                              fillOpacity: 0.15,
-                              dashArray: "1,3",
-                            };
-                          }}
-                          onEachFeature={(feature, layer) => {
-                            const p = feature.properties || {};
-                            const popupContent = `
-                              <div style="font-size:13px; line-height:1.4; color:#0ff;">
-                                <strong>NO KKPRL:</strong> ${p.NO_KKPRL || "—"}<br/>
-                                <strong>Nama:</strong> ${p.NAMA_SUBJ || "—"}<br/>
-                                <strong>Jenis:</strong> ${p["Jenis KKPRL"] || "—"}<br/>
-                                <strong>Kegiatan:</strong> ${p.KEGIATAN || "—"}<br/>
-                                <strong>Provinsi:</strong> ${p.PROVINSI || "—"}
-                              </div>`;
-                            layer.bindPopup(popupContent);
-                          }}
-                        />
-                      )}
-
-                      {result.geometry_type === "Point" &&
-                        result.coordinates.map((coord, i) => (
-                          <Marker
-                            key={i}
-                            position={[coord.latitude, coord.longitude]}
-                          >
-                            <Popup>
-                              <div className="text-sm">
-                                <strong>ID:</strong> {coord.id}
-                                <br />
-                                <strong>Lat:</strong> {coord.latitude.toFixed(6)}
-                                <br />
-                                <strong>Lng:</strong> {coord.longitude.toFixed(6)}
+              {/* === Hasil Analisis === */}
+              {result && (
+                <>
+                  <div className="space-y-6">
+                    {/* Statistik */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {/* Total */}
+                      <Card className="glass glow-hover border-cyan-500/30">
+                        <CardContent className="p-6">
+                          <div className="text-3xl font-bold text-cyan-300 mb-1">
+                            {result.total_rows}
+                          </div>
+                          <div className="text-sm text-cyan-100/70">Total Koordinat</div>
+                        </CardContent>
+                      </Card>
+              
+                      {/* Overlap Kawasan */}
+                      <Card className="glass glow-hover border-cyan-500/30">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="text-lg font-bold text-cyan-300">
+                              {result.overlap_kawasan?.has_overlap
+                                ? "Dalam Kawasan Konservasi"
+                                : "Di luar Kawasan Konservasi"}
+                            </div>
+                            <span
+                              className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                                result.overlap_kawasan?.has_overlap
+                                  ? "bg-red-500/30 text-red-300 border border-red-400/30"
+                                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
+                              }`}
+                            >
+                              {result.overlap_kawasan?.has_overlap ? "Perhatian" : "Aman"}
+                            </span>
+                          </div>
+                        </CardContent>
+                      </Card>
+              
+                      {/* Status KKPRL */}
+                      <Card className="glass glow-hover border-cyan-500/30">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg font-bold text-cyan-300 mb-1">
+                                {result.overlap_analysis?.has_overlap
+                                  ? "Ada Overlap"
+                                  : "Tidak Ada"}
                               </div>
-                            </Popup>
-                          </Marker>
-                        ))}
-                    </MapContainer>
+                              <div className="text-sm text-cyan-100/70">
+                                Penerbitan KKPRL
+                              </div>
+                            </div>
+                            <Badge
+                              className={`text-xs ${
+                                result.overlap_analysis?.has_overlap
+                                  ? "bg-orange-500/20 text-orange-300 border-orange-500/50"
+                                  : "bg-green-500/20 text-green-300 border-green-500/50"
+                              }`}
+                            >
+                              {result.overlap_analysis?.has_overlap ? "Perhatian" : "Aman"}
+                            </Badge>
+                          </div>
+                        </CardContent>
+                      </Card>
+              
+                      {/* 12 Mil Laut */}
+                      <Card className="glass glow-hover border-cyan-500/30">
+                        <CardContent className="p-6 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-lg font-bold text-cyan-300 mb-1">
+                                {result.overlap_12mil?.has_overlap
+                                  ? "Dalam 12 Mil Laut"
+                                  : "Di Luar 12 Mil Laut"}
+                              </div>
+                            </div>
+                            <Badge
+                              className={`text-xs ${
+                                result.overlap_12mil?.has_overlap
+                                  ? "bg-blue-500/20 text-blue-300 border-blue-500/50"
+                                  : "bg-green-500/20 text-green-300 border-green-500/50"
+                              }`}
+                            >
+                              {result.overlap_12mil?.has_overlap ? "Dalam" : "Luar"}
+                            </Badge>
+                          </div>
+              
+                          {result.overlap_12mil?.wp_list?.length > 0 && (
+                            <div className="mt-2">
+                              <p className="text-cyan-100/70 text-sm mb-1">
+                                Wilayah Provinsi:
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {result.overlap_12mil.wp_list.map((wp, i) => (
+                                  <span
+                                    key={i}
+                                    className="bg-blue-500/20 text-blue-200 border border-blue-500/40 px-3 py-1 rounded-full text-xs font-medium"
+                                  >
+                                    {wp}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+              
+                    {/* === Peta === */}
+                    <Card className="glass glow-hover border-cyan-500/30">
+                      <CardHeader>
+                        <CardTitle className="text-2xl text-cyan-300 flex items-center gap-2">
+                          <MapIcon className="w-6 h-6" /> Peta Visualisasi
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[500px] rounded-lg overflow-hidden">
+                          <MapContainer
+                            center={[
+                              result.coordinates[0]?.latitude || 0,
+                              result.coordinates[0]?.longitude || 0,
+                            ]}
+                            zoom={13}
+                            style={{ height: "100%", width: "100%" }}
+                          >
+                            <TileLayer
+                              url="https://mt1.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}"
+                              attribution="Imagery © Google"
+                            />
+                            {kkprlData && <GeoJSON data={kkprlData} />}
+                          </MapContainer>
+                        </div>
+                      </CardContent>
+                    </Card>
+              
+                    {/* === Tombol Download === */}
+                    <Button
+                      onClick={handleDownload}
+                      disabled={downloadLoading}
+                      className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-400 hover:to-teal-500 text-white font-semibold py-6 text-lg glow"
+                    >
+                      {downloadLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Mengunduh...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-5 h-5 mr-2" /> Download Shapefile (ZIP)
+                        </>
+                      )}
+                    </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </>
+              )}
 
-              <Button
-                onClick={handleDownload}
-                disabled={downloadLoading}
-                className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-400 hover:to-teal-500 text-white font-semibold py-6 text-lg glow"
-              >
-                {downloadLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" /> Mengunduh...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-5 h-5 mr-2" /> Download Shapefile (ZIP)
-                  </>
-                )}
-              </Button>
-            </>
-          )}
-        </div>
 
         <footer className="mt-12 text-center text-cyan-100/50 text-sm">
           <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
