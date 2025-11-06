@@ -99,6 +99,33 @@ const Home = () => {
       setLoading(false);
     }
   };
+  
+  const handleAnalyze = async () => {
+    if (!file) {
+      toast.error("Silakan pilih file Excel terlebih dahulu");
+      return;
+    }
+  
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+  
+      const res = await axios.post(
+        `${API}/analyze-coordinates?format_type=${formatType}&geometry_type=${geometryType}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+  
+      console.log("📊 Response dari backend:", res.data); // 👈 Tambahkan ini
+      setResult(res.data);
+      toast.success("Analisis selesai!");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Terjadi kesalahan saat analisis");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDownload = async () => {
     if (!result) return;
