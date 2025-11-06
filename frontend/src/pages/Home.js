@@ -101,7 +101,30 @@ const Home = () => {
   }
 };
 
-
+    // === Download Shapefile ===
+  const handleDownload = async () => {
+    if (!result) return;
+    setDownloadLoading(true);
+    try {
+      const res = await axios.post(
+        `${API}/download-shapefile`,
+        {
+          coordinates: result.coordinates,
+          geometry_type: result.geometry_type,
+          filename: "koordinat_output",
+        },
+        { responseType: "blob" }
+      );
+      const blob = new Blob([res.data], { type: "application/zip" });
+      saveAs(blob, "koordinat_output.zip");
+      toast.success("Shapefile berhasil diunduh!");
+    } catch {
+      toast.error("Gagal mengunduh shapefile");
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+  
   const handleReset = () => {
     setFile(null);
     setFormatType("Decimal-Degree");
