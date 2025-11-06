@@ -410,13 +410,13 @@ const Home = () => {
                         </>
                       )}
                     </Button>
-                  
-                  <footer className="mt-12 text-center text-cyan-100/50 text-sm">
-                    <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
-                  </footer>
-                </div>
-              </>
-            );
-          };
-
-          export default Home;
+                    
+                    <footer className="mt-12 text-center text-cyan-100/50 text-sm">
+                      <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
+                    </footer>
+                    </div>
+                    </>
+                    );
+                    };
+                    
+                    export default Home;
