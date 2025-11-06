@@ -126,29 +126,15 @@ const Home = () => {
       setLoading(false);
     }
   };
-
-  const handleDownload = async () => {
-    if (!result) return;
-    setDownloadLoading(true);
-    try {
-      const res = await axios.post(
-        `${API}/download-shapefile`,
-        {
-          coordinates: result.coordinates,
-          geometry_type: result.geometry_type,
-          filename: "koordinat_output",
-        },
-        { responseType: "blob" }
-      );
-      const blob = new Blob([res.data], { type: "application/zip" });
-      saveAs(blob, "koordinat_output.zip");
-      toast.success("Shapefile berhasil diunduh!");
-    } catch {
-      toast.error("Gagal mengunduh shapefile");
-    } finally {
-      setDownloadLoading(false);
-    }
-  };
+    console.log("📊 Response dari backend:", res.data); // 👈 Tambahkan ini
+    setResult(res.data);
+    toast.success("Analisis selesai!");
+  } catch (err) {
+    toast.error(err.response?.data?.detail || "Terjadi kesalahan saat analisis");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleReset = () => {
     setFile(null);
