@@ -410,19 +410,18 @@ const Home = () => {
                         </>
                       )}
                     </Button>
-                  </div> {/* Tutup div hasil analisis */}
-
-                  {/* === Footer === */}
-                  <footer className="mt-12 text-center text-cyan-100/50 text-sm">
-                    <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
-                  </footer>
-                </div> {/* Tutup container utama */}
+                  </div>
+                </>
+              )}
+              {/* === Footer === */}
+              <footer className="mt-12 text-center text-cyan-100/50 text-sm">
+                <p>© 2025 Tools Verdok. Powered by Perizinan I.</p>
+              </footer>
+              </div>
+              </div>
               </>
-            )}
-          </div> {/* Tutup max-w-7xl */}
-        </div> {/* Tutup relative container */}
-      </>
-  );
-};
+              );
+              };
+              
+              export default Home;
 
-export default Home;
