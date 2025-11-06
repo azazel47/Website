@@ -447,7 +447,23 @@ const Home = () => {
                                   }}
                                 />
                               )}
-                      
+
+                              {/* === Hasil Analisis Polygon === */}
+                              {result.geometry_type === "Polygon" && result.geojson && (
+                                <GeoJSON
+                                  data={result.geojson}
+                                  style={{
+                                    color: "#00FFFF",
+                                    weight: 2,
+                                    fillColor: "#00FFFF",
+                                    fillOpacity: 0.2,
+                                  }}
+                                  onEachFeature={(feature, layer) => {
+                                    layer.bindPopup(`<strong>Hasil Analisis Polygon</strong>`);
+                                  }}
+                                />
+                              )}
+
                               {/* === Titik koordinat === */}
                               {result.geometry_type === "Point" &&
                                 result.coordinates.map((coord, idx) => (
@@ -471,7 +487,6 @@ const Home = () => {
                         </CardContent>
                       </Card>
 
-              
                     {/* === Tombol Download === */}
                     <Button
                       onClick={handleDownload}
