@@ -395,8 +395,8 @@ const Home = () => {
                                   data={kkprlData}
                                   style={(feature) => {
                                     const jenis =
-                                      feature.properties?.["Jenis KKPRL"] ||
-                                      feature.properties?.JENIS_KKPRL ||
+                                      feature.properties?.["JENIS"] ||
+                                      feature.properties?.JENIS ||
                                       "";
                       
                                     if (jenis.toLowerCase().includes("persetujuan")) {
@@ -430,12 +430,12 @@ const Home = () => {
                                     const no_kkprl = props.NO_KKPRL || props.no_kkprl || "—";
                                     const nama = props.NAMA_SUBJ || props.nama_subj || "—";
                                     const jenis =
-                                      props.JENIS_KKPRL || props["Jenis KKPRL"] || "—";
+                                      props.JENIS || props["Jenis KKPRL"] || "—";
                                     const kegiatan = props.KEGIATAN || props.kegiatan || "—";
                                     const prov = props.PROVINSI || props.provinsi || "—";
                       
                                     const popupContent = `
-                                      <div style="font-size:13px; line-height:1.4; color:#0ff;">
+                                      <div style="font-size:13px; line-height:1.4; color:#000000;">
                                         <strong>NO KKPRL:</strong> ${no_kkprl}<br/>
                                         <strong>Nama:</strong> ${nama}<br/>
                                         <strong>Jenis:</strong> ${jenis}<br/>
