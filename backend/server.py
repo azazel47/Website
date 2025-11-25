@@ -197,6 +197,7 @@ async def download_shapefile(request: DownloadShapefileRequest):
             raise HTTPException(status_code=400, detail="Tidak ada data koordinat")
 
         print(f"🔍 Struktur koordinat yang diterima: {coords[0] if coords else 'empty'}")
+        print(f"🔍 Jumlah koordinat: {len(coords)}, Tipe geometri: {geom_type}")
         
         # Handle berbagai format koordinat dari frontend
         geometries = []
@@ -206,17 +207,11 @@ async def download_shapefile(request: DownloadShapefileRequest):
             for coord in coords:
                 # Cari longitude dengan berbagai kemungkinan field name
                 lng = (coord.get("longitude") or coord.get("lng") or 
-                       coord.get("x") or (coord[0] if isinstance(coord, (list, tuple)) and len(coord) > 0 else None))
+                       coord.get("x"))
                 
                 # Cari latitude dengan berbagai kemungkinan field name  
                 lat = (coord.get("latitude") or coord.get("lat") or 
-                       coord.get("y") or (coord[1] if isinstance(coord, (list, tuple)) and len(coord) > 1 else None))
-                
-                # Jika tidak ditemukan, coba akses langsung properti object
-                if lng is None and hasattr(coord, 'longitude'):
-                    lng = coord.longitude
-                if lat is None and hasattr(coord, 'latitude'):
-                    lat = coord.latitude
+                       coord.get("y"))
                 
                 if lng is not None and lat is not None:
                     try:
@@ -232,33 +227,38 @@ async def download_shapefile(request: DownloadShapefileRequest):
         
         elif geom_type == "Polygon":
             points = []
+            polygon_coords = []
+            
             for coord in coords:
                 # Handle format yang sama seperti Point
                 lng = (coord.get("longitude") or coord.get("lng") or 
-                       coord.get("x") or (coord[0] if isinstance(coord, (list, tuple)) and len(coord) > 0 else None))
+                       coord.get("x"))
                 
                 lat = (coord.get("latitude") or coord.get("lat") or 
-                       coord.get("y") or (coord[1] if isinstance(coord, (list, tuple)) and len(coord) > 1 else None))
-                
-                if lng is None and hasattr(coord, 'longitude'):
-                    lng = coord.longitude
-                if lat is None and hasattr(coord, 'latitude'):
-                    lat = coord.latitude
+                       coord.get("y"))
                 
                 if lng is not None and lat is not None:
                     try:
                         points.append((float(lng), float(lat)))
-                        valid_coords.append({
+                        polygon_coords.append({
                             "longitude": float(lng),
                             "latitude": float(lat),
-                            "id": coord.get("id", f"polygon_point_{len(valid_coords)}")
+                            "id": coord.get("id", f"polygon_point_{len(polygon_coords)}")
                         })
                     except (ValueError, TypeError) as e:
                         print(f"⚠️ Koordinat polygon tidak valid: {coord}, error: {e}")
                         continue
             
             if len(points) >= 3:
+                # Untuk Polygon, kita hanya punya 1 geometry tapi banyak koordinat
                 geometries = [Polygon(points)]
+                # Untuk Polygon, kita buat 1 record dengan semua koordinat
+                valid_coords = [{
+                    "id": "polygon_1",
+                    "num_points": len(points),
+                    "longitude": points[0][0],  # ambil titik pertama sebagai representasi
+                    "latitude": points[0][1]
+                }]
             else:
                 raise HTTPException(status_code=400, detail="Polygon membutuhkan minimal 3 titik")
         
@@ -269,16 +269,11 @@ async def download_shapefile(request: DownloadShapefileRequest):
             raise HTTPException(status_code=400, detail="Tidak ada koordinat valid yang dapat diproses")
 
         print(f"✅ Berhasil memproses {len(geometries)} geometri dari {len(coords)} koordinat input")
+        print(f"✅ Jumlah valid_coords: {len(valid_coords)}, Jumlah geometries: {len(geometries)}")
 
-        # Buat GeoDataFrame
+        # Buat GeoDataFrame - pastikan jumlah geometries sama dengan valid_coords
         gdf = gpd.GeoDataFrame(valid_coords, geometry=geometries, crs="EPSG:4326")
         
-        # Tambahkan kolom tambahan untuk informasi
-        if geom_type == "Point":
-            gdf['feature_type'] = 'point'
-        else:
-            gdf['feature_type'] = 'polygon'
-
         # Simpan shapefile ke folder sementara
         tmpdir = tempfile.mkdtemp()
         shp_path = os.path.join(tmpdir, f"{filename}.shp")
