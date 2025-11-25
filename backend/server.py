@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Query
 from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -17,6 +18,7 @@ from shapely.geometry import Point, Polygon
 import zipfile
 import geopandas as gpd
 import tempfile
+import shutil
 
 # === Import utils ===
 from utils.coordinate_converter import dms_to_dd
