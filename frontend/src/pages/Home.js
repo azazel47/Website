@@ -529,6 +529,43 @@ const Home = () => {
                         </Card>
                       )}
 
+                      {result.overlap_kawasan?.has_overlap && (
+                        <Card className="glass glow-hover border-orange-500/30" data-testid="overlap-details-card">
+                          <CardHeader>
+                            <CardTitle className="text-2xl text-orange-300">Detail Kawasan Konservasi</CardTitle>
+                            <CardDescription className="text-cyan-100/60">
+                              {result.overlap_kawasan.message}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                              {result.overlap_kawasan.overlap_details?.map((detail, idx) => (
+                                <div
+                                  key={idx}
+                                  className="glass p-4 rounded-lg border border-cyan-500/20 hover:border-cyan-400/40 transition-colors"
+                                  data-testid={`overlap-item-${idx}`}
+                                >
+                                  <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                      <span className="text-cyan-100/60">Nama Kawasan:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.NAMA_KK}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-cyan-100/60">Kewenangan:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.KEWENANGAN}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-cyan-100/60">Penetapan:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.DASAR_HKM}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
                     {/* === Tombol Download === */}
                     <Button
                       onClick={handleDownload}
