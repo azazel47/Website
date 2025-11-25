@@ -16,6 +16,7 @@ import json
 from shapely.geometry import Point, Polygon
 import zipfile
 import geopandas as gpd
+import tempfile
 
 # === Import utils ===
 from utils.coordinate_converter import dms_to_dd
