@@ -193,38 +193,124 @@ async def download_shapefile(request: DownloadShapefileRequest):
         if not coords or len(coords) == 0:
             raise HTTPException(status_code=400, detail="Tidak ada data koordinat")
 
-        # Buat GeoDataFrame dari koordinat
+        print(f"🔍 Struktur koordinat yang diterima: {coords[0] if coords else 'empty'}")
+        
+        # Handle berbagai format koordinat dari frontend
+        geometries = []
+        valid_coords = []
+        
         if geom_type == "Point":
-            geometries = [Point(c["longitude"], c["latitude"]) for c in coords]
+            for coord in coords:
+                # Cari longitude dengan berbagai kemungkinan field name
+                lng = (coord.get("longitude") or coord.get("lng") or 
+                       coord.get("x") or (coord[0] if isinstance(coord, (list, tuple)) and len(coord) > 0 else None))
+                
+                # Cari latitude dengan berbagai kemungkinan field name  
+                lat = (coord.get("latitude") or coord.get("lat") or 
+                       coord.get("y") or (coord[1] if isinstance(coord, (list, tuple)) and len(coord) > 1 else None))
+                
+                # Jika tidak ditemukan, coba akses langsung properti object
+                if lng is None and hasattr(coord, 'longitude'):
+                    lng = coord.longitude
+                if lat is None and hasattr(coord, 'latitude'):
+                    lat = coord.latitude
+                
+                if lng is not None and lat is not None:
+                    try:
+                        geometries.append(Point(float(lng), float(lat)))
+                        valid_coords.append({
+                            "longitude": float(lng),
+                            "latitude": float(lat),
+                            "id": coord.get("id", f"point_{len(valid_coords)}")
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Koordinat tidak valid: {coord}, error: {e}")
+                        continue
+        
         elif geom_type == "Polygon":
-            points = [(c["longitude"], c["latitude"]) for c in coords]
-            geometries = [Polygon(points)]
+            points = []
+            for coord in coords:
+                # Handle format yang sama seperti Point
+                lng = (coord.get("longitude") or coord.get("lng") or 
+                       coord.get("x") or (coord[0] if isinstance(coord, (list, tuple)) and len(coord) > 0 else None))
+                
+                lat = (coord.get("latitude") or coord.get("lat") or 
+                       coord.get("y") or (coord[1] if isinstance(coord, (list, tuple)) and len(coord) > 1 else None))
+                
+                if lng is None and hasattr(coord, 'longitude'):
+                    lng = coord.longitude
+                if lat is None and hasattr(coord, 'latitude'):
+                    lat = coord.latitude
+                
+                if lng is not None and lat is not None:
+                    try:
+                        points.append((float(lng), float(lat)))
+                        valid_coords.append({
+                            "longitude": float(lng),
+                            "latitude": float(lat),
+                            "id": coord.get("id", f"polygon_point_{len(valid_coords)}")
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Koordinat polygon tidak valid: {coord}, error: {e}")
+                        continue
+            
+            if len(points) >= 3:
+                geometries = [Polygon(points)]
+            else:
+                raise HTTPException(status_code=400, detail="Polygon membutuhkan minimal 3 titik")
+        
         else:
             raise HTTPException(status_code=400, detail="geometry_type tidak valid")
 
-        gdf = gpd.GeoDataFrame(coords, geometry=geometries, crs="EPSG:4326")
+        if len(geometries) == 0:
+            raise HTTPException(status_code=400, detail="Tidak ada koordinat valid yang dapat diproses")
+
+        print(f"✅ Berhasil memproses {len(geometries)} geometri dari {len(coords)} koordinat input")
+
+        # Buat GeoDataFrame
+        gdf = gpd.GeoDataFrame(valid_coords, geometry=geometries, crs="EPSG:4326")
+        
+        # Tambahkan kolom tambahan untuk informasi
+        if geom_type == "Point":
+            gdf['feature_type'] = 'point'
+        else:
+            gdf['feature_type'] = 'polygon'
 
         # Simpan shapefile ke folder sementara
         tmpdir = tempfile.mkdtemp()
         shp_path = os.path.join(tmpdir, f"{filename}.shp")
-        gdf.to_file(shp_path)
+        
+        try:
+            # Export ke shapefile
+            gdf.to_file(shp_path, driver='ESRI Shapefile', encoding='utf-8')
+            
+            # Zip semua file shapefile
+            zip_path = os.path.join(tmpdir, f"{filename}.zip")
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                for file in os.listdir(tmpdir):
+                    if file.endswith(('.shp', '.shx', '.dbf', '.prj', '.cpg')):
+                        file_path = os.path.join(tmpdir, file)
+                        zipf.write(file_path, arcname=file)
+            
+            print(f"✅ Shapefile berhasil dibuat: {zip_path}")
+            
+            # Return file response
+            return FileResponse(
+                path=zip_path,
+                media_type="application/zip",
+                filename=f"{filename}.zip"
+            )
+            
+        except Exception as e:
+            # Cleanup jika error
+            if os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
+            raise e
 
-        # Zip semua file shapefile
-        zip_path = os.path.join(tmpdir, f"{filename}.zip")
-        with zipfile.ZipFile(zip_path, "w") as zipf:
-            for ext in [".shp", ".shx", ".dbf", ".prj", ".cpg"]:
-                f = os.path.join(tmpdir, f"{filename}{ext}")
-                if os.path.exists(f):
-                    zipf.write(f, arcname=os.path.basename(f))
-
-        return FileResponse(
-            zip_path,
-            media_type="application/zip",
-            filename=f"{filename}.zip",
-        )
-
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Gagal membuat shapefile: {e}", exc_info=True)
+        logger.error(f"❌ Gagal membuat shapefile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
         
 
