@@ -487,6 +487,48 @@ const Home = () => {
                         </CardContent>
                       </Card>
 
+                      {/* Overlap Details */}
+                      {result.overlap_analysis?.has_overlap && (
+                        <Card className="glass glow-hover border-orange-500/30" data-testid="overlap-details-card">
+                          <CardHeader>
+                            <CardTitle className="text-2xl text-orange-300">Detail Overlap KKPRL</CardTitle>
+                            <CardDescription className="text-cyan-100/60">
+                              {result.overlap_analysis.message}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                              {result.overlap_analysis.overlap_details?.map((detail, idx) => (
+                                <div
+                                  key={idx}
+                                  className="glass p-4 rounded-lg border border-cyan-500/20 hover:border-cyan-400/40 transition-colors"
+                                  data-testid={`overlap-item-${idx}`}
+                                >
+                                  <div className="grid grid-cols-2 gap-2 text-sm">
+                                    <div>
+                                      <span className="text-cyan-100/60">NO KKPRL:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.no_kkprl}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-cyan-100/60">Nama:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.nama_subj}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-cyan-100/60">Kegiatan:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.kegiatan}</p>
+                                    </div>
+                                    <div>
+                                      <span className="text-cyan-100/60">Provinsi:</span>
+                                      <p className="text-cyan-100 font-medium">{detail.provinsi}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
                     {/* === Tombol Download === */}
                     <Button
                       onClick={handleDownload}
