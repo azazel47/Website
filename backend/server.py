@@ -45,12 +45,7 @@ db = client[os.environ.get("DB_NAME", "test")] if client else None
 
 app = FastAPI(title="Spatio Downloader API")
 # DEFINISIKAN ORIGIN SECARA EKSPLISIT
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://verdock-tools.vercel.app",  # <--- Domain Frontend kamu
-    "*" # Opsional: jika ingin mengizinkan semua (hati-hati untuk production)
-]
+origins = ["https://verdock-tools.vercel.app"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -59,6 +54,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# origins = [
+#     "http://localhost:3000",
+#     "http://127.0.0.1:3000",
+#     "https://verdock-tools.vercel.app",  # <--- Domain Frontend kamu
+#     "*" # Opsional: jika ingin mengizinkan semua (hati-hati untuk production)
+# ]
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#)
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
