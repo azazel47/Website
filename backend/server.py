@@ -44,16 +44,32 @@ client = AsyncIOMotorClient(mongo_url) if mongo_url else None
 db = client[os.environ.get("DB_NAME", "test")] if client else None
 
 app = FastAPI(title="Spatio Downloader API")
-# DEFINISIKAN ORIGIN SECARA EKSPLISIT
-origins = ["https://verdock-tools.vercel.app"]
+# --- CORS FIX FOR RAILWAY ---
+env_origins = os.environ.get("CORS_ALLOW_ORIGINS", "")
+parsed_origins = [o.strip() for o in env_origins.split(",") if o.strip()]
+
+if not parsed_origins:
+    parsed_origins = ["*"]  # fallback
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=parsed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ------------------------------
+
+# DEFINISIKAN ORIGIN SECARA EKSPLISIT
+# origins = ["https://verdock-tools.vercel.app"]
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 # origins = [
 #     "http://localhost:3000",
