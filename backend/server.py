@@ -53,38 +53,12 @@ if not parsed_origins:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=parsed_origins,
-    allow_credentials=True,
+    allow_origins=["*"],       # Izinkan semua origin
+    allow_credentials=False,   # WAJIB False kalau pakai "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ------------------------------
 
-# DEFINISIKAN ORIGIN SECARA EKSPLISIT
-# origins = ["https://verdock-tools.vercel.app"]
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# origins = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     "https://verdock-tools.vercel.app",  # <--- Domain Frontend kamu
-#     "*" # Opsional: jika ingin mengizinkan semua (hati-hati untuk production)
-# ]
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-#)
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
@@ -356,6 +330,9 @@ async def download_shapefile(request: DownloadShapefileRequest):
         logger.error(f"❌ Gagal membuat shapefile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
         
+@app.options("/{rest_of_path:path}")
+async def cors_preflight(rest_of_path: str):
+    return {}
 
 # === Register Router ===
 app.include_router(api_router)
