@@ -350,3 +350,7 @@ async def shutdown_db_client():
     if client:
         client.close()
 
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT"))   # TANPA DEFAULT
+    uvicorn.run("server:app", host="0.0.0.0", port=port)
