@@ -26,4 +26,4 @@ COPY . .
 
 # Perintah untuk menjalankan aplikasi Anda
 # GANTI "main:app" sesuai nama file dan app Anda (misal: app:server, atau manage.py runserver)
-CMD ["python", "main.py"]
+CMD ["python", "server.py"]
