@@ -53,8 +53,8 @@ if not parsed_origins:
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],       # Izinkan semua origin
-    allow_credentials=False,   # WAJIB False kalau pakai "*"
+    allow_origins=parsed_origins,       # Izinkan semua origin
+    allow_credentials=True,   # WAJIB False kalau pakai "*"
     allow_methods=["*"],
     allow_headers=["*"],
 )
