@@ -1,5 +1,5 @@
 # Gunakan image Python yang ringan
-FROM python:3.9-slim
+FROM python:3.10-slim
 
 # 1. Install system dependencies (PROJ & Compiler)
 # Ini langkah paling penting untuk memperbaiki error Anda
