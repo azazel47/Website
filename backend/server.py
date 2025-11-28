@@ -350,13 +350,3 @@ async def shutdown_db_client():
     if client:
         client.close()
 
-# === SERVER RUNNER (WAJIB ADA) ===
-if __name__ == "__main__":
-    import uvicorn
-    # Ambil port dari environment variable Railway (default 8080)
-    port = int(os.environ.get("PORT", 8080))
-    print(f"🚀 Starting server on port {port}...")
-    
-    # "server:app" artinya file server.py, variable app
-    # host="0.0.0.0" artinya bisa diakses dari luar container (Wajib untuk Docker)
-    uvicorn.run("server:app", host="0.0.0.0", port=port)
