@@ -1,0 +1,5 @@
+[build]
+python_version = "3.11"
+
+[deploy]
+start = "uvicorn server:app --host=0.0.0.0 --port=$PORT"
