@@ -43,6 +43,21 @@ client = AsyncIOMotorClient(mongo_url) if mongo_url else None
 db = client[os.environ.get("DB_NAME", "test")] if client else None
 
 app = FastAPI(title="Spatio Downloader API")
+# DEFINISIKAN ORIGIN SECARA EKSPLISIT
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://verdock-tools.vercel.app",  # <--- Domain Frontend kamu
+    "*" # Opsional: jika ingin mengizinkan semua (hati-hati untuk production)
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 api_router = APIRouter(prefix="/api")
 
 logging.basicConfig(level=logging.INFO)
@@ -318,15 +333,26 @@ async def download_shapefile(request: DownloadShapefileRequest):
 # === Register Router ===
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+#app.add_middleware(
+    #CORSMiddleware,
+    #allow_credentials=True,
+    #allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    #allow_methods=["*"],
+    #allow_headers=["*"],
+#)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
     if client:
         client.close()
+
+# === SERVER RUNNER (WAJIB ADA) ===
+if __name__ == "__main__":
+    import uvicorn
+    # Ambil port dari environment variable Railway (default 8080)
+    port = int(os.environ.get("PORT", 8080))
+    print(f"🚀 Starting server on port {port}...")
+    
+    # "server:app" artinya file server.py, variable app
+    # host="0.0.0.0" artinya bisa diakses dari luar container (Wajib untuk Docker)
+    uvicorn.run("server:app", host="0.0.0.0", port=port)
