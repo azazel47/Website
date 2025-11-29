@@ -1,0 +1,9 @@
+[phases.setup]
+# Menggunakan Python 3.11 dan library C++ wajib untuk GeoPandas
+nixPkgs = ["python311", "gcc", "gdal", "geos"]
+
+[phases.install]
+cmds = ["python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt"]
+
+[phases.start]
+cmds = [". .venv/bin/activate && uvicorn server:app --host 0.0.0.0 --port $PORT"]
