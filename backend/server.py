@@ -19,8 +19,6 @@ import zipfile
 import geopandas as gpd
 import tempfile
 import shutil
-# [TAMBAHAN 1] Import contextlib untuk Lifespan
-from contextlib import asynccontextmanager
 
 # === Import utils ===
 from utils.coordinate_converter import dms_to_dd
@@ -44,33 +42,11 @@ mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url) if mongo_url else None
 db = client[os.environ.get("DB_NAME", "test")] if client else None
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("uvicorn.info")
-
-# === [TAMBAHAN 2] LIFESPAN LOGIC ===
-# Ini mencegah crash 502 dengan memuat data SAAT STARTUP, bukan saat request
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("🚀 Server starting... Memuat data KKPRL ke Cache...")
-    try:
-        # Kita panggil sekali di sini supaya masuk ke cache RAM
-        # Jadi saat user akses website, datanya sudah siap
-        load_kkprl_json()
-        logger.info("✅ Data KKPRL siap di memori!")
-    except Exception as e:
-        logger.error(f"⚠️ Gagal pre-load KKPRL: {e}")
-    
-    yield # Server berjalan di sini
-    
-    logger.info("🛑 Server shutting down...")
-    if client:
-        client.close()
-        
-app = FastAPI(title="Spatio Downloader API",lifespan=lifespan)
+app = FastAPI(title="Spatio Downloader API")
 api_router = APIRouter(prefix="/api")
 
-#logging.basicConfig(level=logging.INFO)
-#logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # === Models ===
 class StatusCheck(BaseModel):
