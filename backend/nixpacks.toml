@@ -1,11 +1,16 @@
-# 1. Setup: Install Python 3.11 dan Library C++ untuk GeoPandas (GDAL)
 [phases.setup]
-nixPkgs = ["python311", "gdal", "geos", "gcc", "bash"]
+# Setup Python 3.11 dan library GDAL (Wajib untuk GeoPandas)
+nixPkgs = ["python311", "gdal", "geos", "gcc"]
 
-# 2. Install: Langsung pip install (Nixpacks otomatis handle path-nya)
 [phases.install]
-cmds = ["python -m pip install -r requirements.txt"]
+# 1. Buat venv
+# 2. Install requirements KE DALAM venv tersebut (pakai .venv/bin/pip)
+cmds = [
+    "python -m venv .venv",
+    ".venv/bin/pip install -r requirements.txt"
+]
 
-# 3. Start: Jalankan server langsung (Tanpa activate venv manual)
 [phases.start]
-cmds = ["python -m uvicorn server:app --host 0.0.0.0 --port $PORT"]
+# JANGAN pakai 'source activate'. Panggil python dari venv langsung.
+# Ini jauh lebih aman dan anti-error.
+cmds = [".venv/bin/python -m uvicorn server:app --host 0.0.0.0 --port $PORT"]
