@@ -1,9 +1,10 @@
 from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Query
-from fastapi.responses import StreamingResponse, FileResponse
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
-import uvicorn
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
@@ -18,88 +19,34 @@ import zipfile
 import geopandas as gpd
 import tempfile
 import shutil
-# Import contextlib untuk menangani startup/shutdown (Lifespan)
-from contextlib import asynccontextmanager
-
-# === Setup Logging ===
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("uvicorn.info")
 
 # === Import utils ===
-# Pastikan file utils/mil12_loader.py dan utils/kawasan_loader.py SUDAH DIPERBARUI
-# sesuai jawaban sebelumnya agar import ini tidak error.
-try:
-    from utils.coordinate_converter import dms_to_dd
-    from utils.kkprl_loader import load_kkprl_json, get_kkprl_metadata
-    from utils.mil12_loader import load_12mil_shapefile, analyze_overlap_12mil
-    from utils.kawasan_loader import load_kawasan_konservasi, analyze_overlap_kawasan
-    from utils.spatial_analysis import (
-        create_point_geodataframe,
-        create_polygon_geodataframe,
-        analyze_point_overlap,
-        analyze_polygon_overlap,
-    )
-except ImportError as e:
-    logger.error(f"❌ IMPORT ERROR: {e}")
-    logger.error("Pastikan file di folder 'utils/' sudah diperbarui dengan script yang diberikan sebelumnya.")
-    raise e
+from utils.coordinate_converter import dms_to_dd
+from utils.kkprl_loader import load_kkprl_json, get_kkprl_metadata
+from utils.mil12_loader import load_12mil_shapefile
+from utils.kawasan_loader import load_kawasan_konservasi
+from utils.spatial_analysis import (
+    create_point_geodataframe,
+    create_polygon_geodataframe,
+    analyze_point_overlap,
+    analyze_polygon_overlap,
+    analyze_overlap_12mil,
+    analyze_overlap_kawasan,
+)
 
-# === Setup Env & DB ===
+# === Setup ===
 ROOT_DIR = Path(__file__).parent
-from dotenv import load_dotenv
 load_dotenv(ROOT_DIR / ".env")
 
 mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url) if mongo_url else None
 db = client[os.environ.get("DB_NAME", "test")] if client else None
 
-# === LIFESPAN (PENTING: Mencegah Crash di Railway) ===
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # --- Startup ---
-    logger.info("🚀 Server starting... Memuat data ke memori...")
-    try:
-        # Load data berat di sini agar tidak crash saat request pertama
-        kkprl_gdf = load_kkprl_json()
-        if kkprl_gdf is not None:
-            logger.info(f"✅ KKPRL Data Ready: {len(kkprl_gdf)} features")
-        else:
-            logger.warning("⚠️ KKPRL Data failed to load via API (Will retry on request)")
-            
-        # Optional: Pre-load data 12 mil & kawasan jika file tersedia
-        # load_12mil_shapefile() 
-        # load_kawasan_konservasi()
-        
-    except Exception as e:
-        logger.error(f"❌ Error during startup loading: {e}")
-
-    yield # Server berjalan melayani request di sini
-
-    # --- Shutdown ---
-    logger.info("🛑 Server shutting down...")
-    if client:
-        client.close()
-        logger.info("✅ MongoDB connection closed")
-
-# === Init App ===
-app = FastAPI(title="Spatio Downloader API", lifespan=lifespan)
-
-# === CORS SETUP ===
-env_origins = os.environ.get("CORS_ALLOW_ORIGINS", "")
-parsed_origins = [o.strip() for o in env_origins.split(",") if o.strip()]
-
-if not parsed_origins:
-    parsed_origins = ["*"]  # fallback aman
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=parsed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+app = FastAPI(title="Spatio Downloader API")
 api_router = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # === Models ===
 class StatusCheck(BaseModel):
@@ -119,7 +66,7 @@ class DownloadShapefileRequest(BaseModel):
 # === Routes ===
 @api_router.get("/")
 async def root():
-    return {"message": "Spatio Downloader API - Ready", "cors": parsed_origins}
+    return {"message": "Spatio Downloader API - Ready"}
 
 @api_router.get("/kkprl-metadata")
 async def kkprl_metadata():
@@ -128,10 +75,10 @@ async def kkprl_metadata():
 
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
-    """Mengirim data KKPRL dalam format GeoJSON"""
+    """Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
     gdf = load_kkprl_json()
     if gdf is None:
-        raise HTTPException(status_code=500, detail="KKPRL data not available")
+        raise HTTPException(status_code=404, detail="KKPRL data not available")
     return json.loads(gdf.to_json())
 
 @api_router.post("/status", response_model=StatusCheck)
@@ -171,30 +118,40 @@ async def analyze_coordinates(
 
         # === Konversi Koordinat ===
         if format_type == "OSS-UTM":
-            required_cols = ["bujur_derajat", "bujur_menit", "bujur_detik", "BT_BB", "lintang_derajat", "lintang_menit", "lintang_detik", "LU_LS"]
+            required_cols = [
+                "bujur_derajat",
+                "bujur_menit",
+                "bujur_detik",
+                "BT_BB",
+                "lintang_derajat",
+                "lintang_menit",
+                "lintang_detik",
+                "LU_LS",
+            ]
             missing = [c for c in required_cols if c not in df.columns]
             if missing:
                 raise HTTPException(status_code=400, detail=f"Kolom hilang: {missing}")
 
-            df["longitude"] = df.apply(lambda r: dms_to_dd(r["bujur_derajat"], r["bujur_menit"], r["bujur_detik"], r["BT_BB"]), axis=1)
-            df["latitude"] = df.apply(lambda r: dms_to_dd(r["lintang_derajat"], r["lintang_menit"], r["lintang_detik"], r["LU_LS"]), axis=1)
-            
+            df["longitude"] = df.apply(
+                lambda r: dms_to_dd(r["bujur_derajat"], r["bujur_menit"], r["bujur_detik"], r["BT_BB"]), axis=1
+            )
+            df["latitude"] = df.apply(
+                lambda r: dms_to_dd(r["lintang_derajat"], r["lintang_menit"], r["lintang_detik"], r["LU_LS"]), axis=1
+            )
         elif format_type == "Decimal-Degree":
-            if "x" in df.columns: df.rename(columns={"x": "longitude"}, inplace=True)
-            if "y" in df.columns: df.rename(columns={"y": "latitude"}, inplace=True)
-            
-            if "longitude" not in df.columns or "latitude" not in df.columns:
-                raise HTTPException(status_code=400, detail="Kolom longitude/x dan latitude/y wajib ada")
+            if "x" not in df.columns or "y" not in df.columns:
+                raise HTTPException(status_code=400, detail="Kolom 'x' dan 'y' wajib ada")
+            df = df.rename(columns={"x": "longitude", "y": "latitude"})
         else:
             raise HTTPException(status_code=400, detail="format_type tidak valid")
 
         if "id" not in df.columns:
             df["id"] = [f"point_{i+1}" for i in range(len(df))]
 
-        df = df.head(300) # Limit 300 data
+        df = df.head(300)
         coordinates = df[["id", "longitude", "latitude"]].to_dict("records")
 
-        # === Buat GeoDataFrame Input ===
+        # === Buat GeoDataFrame ===
         if geometry_type == "Point":
             gdf = create_point_geodataframe(coordinates)
         else:
@@ -202,7 +159,7 @@ async def analyze_coordinates(
 
         geojson = json.loads(gdf.to_json())
 
-        # === Analisis Overlap (Menggunakan fungsi yang sudah diimport) ===
+        # === Analisis Overlap KKPRL ===
         kkprl_gdf = load_kkprl_json()
         if kkprl_gdf is not None:
             if geometry_type == "Point":
@@ -212,7 +169,7 @@ async def analyze_coordinates(
         else:
             overlap_analysis = {"has_overlap": False, "message": "KKPRL tidak tersedia"}
 
-        # Panggil fungsi analisis tambahan yang baru ditambahkan
+        # === Analisis 12 Mil Laut dan Kawasan Konservasi ===
         overlap_12mil = analyze_overlap_12mil(gdf)
         overlap_kawasan = analyze_overlap_kawasan(gdf)
 
@@ -228,85 +185,148 @@ async def analyze_coordinates(
         }
 
     except Exception as e:
-        logger.error(f"Error Analysis: {e}", exc_info=True)
+        logger.error(f"Error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/download-shapefile")
 async def download_shapefile(request: DownloadShapefileRequest):
-    """Generate shapefile (ZIP)"""
+    """Generate shapefile (ZIP) dari hasil analisis koordinat"""
     try:
         coords = request.coordinates
         geom_type = request.geometry_type
         filename = request.filename or "hasil_analisis"
 
-        if not coords:
+        if not coords or len(coords) == 0:
             raise HTTPException(status_code=400, detail="Tidak ada data koordinat")
 
+        print(f"🔍 Struktur koordinat yang diterima: {coords[0] if coords else 'empty'}")
+        print(f"🔍 Jumlah koordinat: {len(coords)}, Tipe geometri: {geom_type}")
+        
+        # Handle berbagai format koordinat dari frontend
         geometries = []
         valid_coords = []
         
-        # Logika pembentukan geometri (sama seperti sebelumnya)
         if geom_type == "Point":
             for coord in coords:
-                lng = coord.get("longitude") or coord.get("lng") or coord.get("x")
-                lat = coord.get("latitude") or coord.get("lat") or coord.get("y")
+                # Cari longitude dengan berbagai kemungkinan field name
+                lng = (coord.get("longitude") or coord.get("lng") or 
+                       coord.get("x"))
+                
+                # Cari latitude dengan berbagai kemungkinan field name  
+                lat = (coord.get("latitude") or coord.get("lat") or 
+                       coord.get("y"))
+                
                 if lng is not None and lat is not None:
                     try:
                         geometries.append(Point(float(lng), float(lat)))
-                        valid_coords.append({"id": coord.get("id"), "longitude": float(lng), "latitude": float(lat)})
-                    except: continue
+                        valid_coords.append({
+                            "longitude": float(lng),
+                            "latitude": float(lat),
+                            "id": coord.get("id", f"point_{len(valid_coords)}")
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Koordinat tidak valid: {coord}, error: {e}")
+                        continue
         
         elif geom_type == "Polygon":
             points = []
+            polygon_coords = []
+            
             for coord in coords:
-                lng = coord.get("longitude") or coord.get("lng") or coord.get("x")
-                lat = coord.get("latitude") or coord.get("lat") or coord.get("y")
+                # Handle format yang sama seperti Point
+                lng = (coord.get("longitude") or coord.get("lng") or 
+                       coord.get("x"))
+                
+                lat = (coord.get("latitude") or coord.get("lat") or 
+                       coord.get("y"))
+                
                 if lng is not None and lat is not None:
                     try:
                         points.append((float(lng), float(lat)))
-                    except: continue
+                        polygon_coords.append({
+                            "longitude": float(lng),
+                            "latitude": float(lat),
+                            "id": coord.get("id", f"polygon_point_{len(polygon_coords)}")
+                        })
+                    except (ValueError, TypeError) as e:
+                        print(f"⚠️ Koordinat polygon tidak valid: {coord}, error: {e}")
+                        continue
             
             if len(points) >= 3:
+                # Untuk Polygon, kita hanya punya 1 geometry tapi banyak koordinat
                 geometries = [Polygon(points)]
-                valid_coords = [{"id": "polygon_1", "longitude": points[0][0], "latitude": points[0][1]}]
+                # Untuk Polygon, kita buat 1 record dengan semua koordinat
+                valid_coords = [{
+                    "id": "polygon_1",
+                    "num_points": len(points),
+                    "longitude": points[0][0],  # ambil titik pertama sebagai representasi
+                    "latitude": points[0][1]
+                }]
             else:
-                raise HTTPException(status_code=400, detail="Polygon butuh min 3 titik")
+                raise HTTPException(status_code=400, detail="Polygon membutuhkan minimal 3 titik")
+        
+        else:
+            raise HTTPException(status_code=400, detail="geometry_type tidak valid")
 
-        if not geometries:
-            raise HTTPException(status_code=400, detail="Geometri kosong/invalid")
+        if len(geometries) == 0:
+            raise HTTPException(status_code=400, detail="Tidak ada koordinat valid yang dapat diproses")
 
+        print(f"✅ Berhasil memproses {len(geometries)} geometri dari {len(coords)} koordinat input")
+        print(f"✅ Jumlah valid_coords: {len(valid_coords)}, Jumlah geometries: {len(geometries)}")
+
+        # Buat GeoDataFrame - pastikan jumlah geometries sama dengan valid_coords
         gdf = gpd.GeoDataFrame(valid_coords, geometry=geometries, crs="EPSG:4326")
         
+        # Simpan shapefile ke folder sementara
         tmpdir = tempfile.mkdtemp()
         shp_path = os.path.join(tmpdir, f"{filename}.shp")
         
         try:
+            # Export ke shapefile
             gdf.to_file(shp_path, driver='ESRI Shapefile', encoding='utf-8')
+            
+            # Zip semua file shapefile
             zip_path = os.path.join(tmpdir, f"{filename}.zip")
             with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
                 for file in os.listdir(tmpdir):
                     if file.endswith(('.shp', '.shx', '.dbf', '.prj', '.cpg')):
-                        zipf.write(os.path.join(tmpdir, file), arcname=file)
+                        file_path = os.path.join(tmpdir, file)
+                        zipf.write(file_path, arcname=file)
             
-            return FileResponse(path=zip_path, media_type="application/zip", filename=f"{filename}.zip")
+            print(f"✅ Shapefile berhasil dibuat: {zip_path}")
+            
+            # Return file response
+            return FileResponse(
+                path=zip_path,
+                media_type="application/zip",
+                filename=f"{filename}.zip"
+            )
             
         except Exception as e:
-            if os.path.exists(tmpdir): shutil.rmtree(tmpdir)
+            # Cleanup jika error
+            if os.path.exists(tmpdir):
+                shutil.rmtree(tmpdir)
             raise e
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Shapefile Error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.options("/{rest_of_path:path}")
-async def cors_preflight(rest_of_path: str):
-    return {}
+        logger.error(f"❌ Gagal membuat shapefile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
+        
 
 # === Register Router ===
 app.include_router(api_router)
 
-# === Main Entry Point ===
-if __name__ == "__main__":
-    # Gunakan default 8080 agar tidak error jika env PORT tidak ada
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run("server:app", host="0.0.0.0", port=port)
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    if client:
+        client.close()
