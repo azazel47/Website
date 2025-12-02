@@ -59,7 +59,8 @@ async def lifespan(app: FastAPI):
         gdf = load_kkprl_json()
         if gdf is not None:
             logger.info(f"💾 Menyimpan {len(gdf)} fitur ke file disk: {KKPRL_CACHE_FILE}")
-            gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+            with open(KKPRL_CACHE_FILE, "w") as f:
+                f.write(gdf.to_json())  # aman, tidak pakai GDAL/Fiona
             
             del gdf
             gc.collect()
@@ -141,9 +142,7 @@ async def get_kkprl_geojson():
             if gdf is None:
                 raise HTTPException(status_code=500, detail="Gagal memuat KKPRL dari sumber")
 
-            with open(KKPRL_CACHE_FILE, "w") as f:
-            f.write(gdf.to_json())   # aman 100%, tidak tergantung GDAL
-
+            gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
             del gdf
             gc.collect()
 
