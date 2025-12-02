@@ -145,7 +145,7 @@ async def get_kkprl_geojson():
         iterfile(),
         media_type="application/geo+json",
         headers={
-            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Origin": "https://verdock-tools.vercel.app",
             "Access-Control-Allow-Credentials": "true",
             "Access-Control-Allow-Headers": "*",
             "Access-Control-Allow-Methods": "*",
