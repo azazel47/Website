@@ -19,6 +19,8 @@ import zipfile
 import geopandas as gpd
 import tempfile
 import shutil
+import gc
+from contextlib import asynccontextmanager
 
 # === Import utils ===
 from utils.coordinate_converter import dms_to_dd
@@ -48,6 +50,45 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("🚀 Server starting... Memuat data KKPRL ke RAM...")
+    try:
+        gdf = load_kkprl_json()
+        if gdf is not None:
+            logger.info(f"✅ Data KKPRL siap! Total: {len(gdf)} features")
+            gc.collect()
+        else:
+            logger.warning("⚠️ Gagal memuat KKPRL.")
+            
+    except Exception as e:
+        logger.error(f"❌ Error saat startup: {e}")
+    
+    yield
+    
+    logger.info("🛑 Server shutting down...")
+    if client:
+        client.close()
+
+
+# Init App dengan Lifespan
+app = FastAPI(title="Spatio Downloader API", lifespan=lifespan)
+
+# === CORS CONFIGURATION ===
+env_origins = os.environ.get("CORS_ALLOW_ORIGINS", "*")
+parsed_origins = [o.strip() for o in env_origins.split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=parsed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+api_router = APIRouter(prefix="/api")
+        
+        
 # === Models ===
 class StatusCheck(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -79,7 +120,7 @@ async def get_kkprl_geojson():
     gdf = load_kkprl_json()
     if gdf is None:
         raise HTTPException(status_code=404, detail="KKPRL data not available")
-    return json.loads(gdf.to_json())
+    return Response(content=gdf.to_json(), media_type="application/json")
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
@@ -172,6 +213,8 @@ async def analyze_coordinates(
         # === Analisis 12 Mil Laut dan Kawasan Konservasi ===
         overlap_12mil = analyze_overlap_12mil(gdf)
         overlap_kawasan = analyze_overlap_kawasan(gdf)
+        
+        gc.collect()
 
         return {
             "success": True,
