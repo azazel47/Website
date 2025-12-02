@@ -133,7 +133,7 @@ async def kkprl_metadata():
 
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
-    if not KKPRL_CACHE_FILE.exist():
+    if not KKPRL_CACHE_FILE.exists():
     #"""Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
         gdf = load_kkprl_json()
         if gdf is None:
@@ -386,14 +386,6 @@ async def download_shapefile(request: DownloadShapefileRequest):
 
 # === Register Router ===
 app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
