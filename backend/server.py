@@ -50,14 +50,23 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# === GLOBAL FILE PATH ===
+# Kita akan menyimpan GeoJSON di folder temporary OS
+KKPRL_CACHE_FILE = Path(tempfile.gettempdir()) / "kkprl_cached.geojson"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("🚀 Server starting... Memuat data KKPRL ke RAM...")
     try:
         gdf = load_kkprl_json()
         if gdf is not None:
-            logger.info(f"✅ Data KKPRL siap! Total: {len(gdf)} features")
+            logger.info(f"💾 Menyimpan {len(gdf)} fitur ke file disk: {KKPRL_CACHE_FILE}")
+            gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+            
+            del gdf
             gc.collect()
+            logger.info("✅ File Cache siap! RAM telah dibersihkan.")
+            
         else:
             logger.warning("⚠️ Gagal memuat KKPRL.")
             
@@ -66,11 +75,19 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    logger.info("🛑 Server shutting down...")
+    #logger.info("🛑 Server shutting down...")
+    #if client:
+        #client.close()
+
+    # Cleanup saat shutdown
+    if KKPRL_CACHE_FILE.exists():
+        try:
+            os.remove(KKPRL_CACHE_FILE)
+        except:
+            pass
     if client:
         client.close()
-
-
+        
 # Init App dengan Lifespan
 app = FastAPI(title="Spatio Downloader API", lifespan=lifespan)
 
@@ -116,12 +133,21 @@ async def kkprl_metadata():
 
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
+    if not KKPRL_CACHE_FILE.exist():
     """Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
     gdf = load_kkprl_json()
     if gdf is None:
         raise HTTPException(status_code=404, detail="KKPRL data not available")
-    return Response(content=gdf.to_json(), media_type="application/json")
-
+    gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+    del gdf
+    gc.collect
+    
+    return FileResponse(
+        path=KKPRL_CACHE_FILE, 
+        media_type="application/geo+json", 
+        filename="kkprl.geojson"
+    )
+    
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_obj = StatusCheck(client_name=input.client_name)
