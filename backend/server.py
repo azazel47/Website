@@ -134,13 +134,13 @@ async def kkprl_metadata():
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
     if not KKPRL_CACHE_FILE.exist():
-    """Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
-    gdf = load_kkprl_json()
-    if gdf is None:
-        raise HTTPException(status_code=404, detail="KKPRL data not available")
-    gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
-    del gdf
-    gc.collect
+    #"""Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
+        gdf = load_kkprl_json()
+        if gdf is None:
+            raise HTTPException(status_code=404, detail="KKPRL data not available")
+        gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+        del gdf
+        gc.collect
     
     return FileResponse(
         path=KKPRL_CACHE_FILE, 
