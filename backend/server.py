@@ -21,6 +21,7 @@ import tempfile
 import shutil
 import gc
 from contextlib import asynccontextmanager
+from fastapi.responses import StreamingResponse
 
 # === Import utils ===
 from utils.coordinate_converter import dms_to_dd
@@ -131,18 +132,24 @@ async def kkprl_metadata():
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
     if not KKPRL_CACHE_FILE.exists():
-    #"""Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
         gdf = load_kkprl_json()
         if gdf is None:
             raise HTTPException(status_code=404, detail="KKPRL data not available")
         gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
-        del gdf
-        gc.collect
-    
-    return FileResponse(
-        path=KKPRL_CACHE_FILE, 
-        media_type="application/geo+json", 
-        filename="kkprl.geojson"
+
+    def iterfile():
+        with open(KKPRL_CACHE_FILE, "rb") as f:
+            yield from f
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/geo+json",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "*",
+        }
     )
     
 @api_router.post("/status", response_model=StatusCheck)
