@@ -85,7 +85,9 @@ async def lifespan(app: FastAPI):
             pass
     if client:
         client.close()
-        
+    print("EXISTS:", KKPRL_CACHE_FILE.exists())
+    print("SIZE:", KKPRL_CACHE_FILE.stat().st_size if KKPRL_CACHE_FILE.exists() else 0)
+    
 # Init App dengan Lifespan
 app = FastAPI(title="Spatio Downloader API", lifespan=lifespan)
 
