@@ -44,9 +44,6 @@ mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url) if mongo_url else None
 db = client[os.environ.get("DB_NAME", "test")] if client else None
 
-app = FastAPI(title="Spatio Downloader API")
-api_router = APIRouter(prefix="/api")
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -383,6 +380,10 @@ async def download_shapefile(request: DownloadShapefileRequest):
         logger.error(f"❌ Gagal membuat shapefile: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
         
+
+@app.get("/")
+async def root_main():
+    return {"message": "Spatio Downloader API running"}
 
 # === Register Router ===
 app.include_router(api_router)
