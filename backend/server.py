@@ -85,8 +85,7 @@ async def lifespan(app: FastAPI):
             pass
     if client:
         client.close()
-    print("EXISTS:", KKPRL_CACHE_FILE.exists())
-    print("SIZE:", KKPRL_CACHE_FILE.stat().st_size if KKPRL_CACHE_FILE.exists() else 0)
+    
     
 # Init App dengan Lifespan
 app = FastAPI(title="Spatio Downloader API", lifespan=lifespan)
@@ -142,7 +141,9 @@ async def get_kkprl_geojson():
             if gdf is None:
                 raise HTTPException(status_code=500, detail="Gagal memuat KKPRL dari sumber")
 
-            gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+            with open(KKPRL_CACHE_FILE, "w") as f:
+            f.write(gdf.to_json())   # aman 100%, tidak tergantung GDAL
+
             del gdf
             gc.collect()
 
