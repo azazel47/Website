@@ -131,26 +131,29 @@ async def kkprl_metadata():
 
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
-    if not KKPRL_CACHE_FILE.exists():
-        gdf = load_kkprl_json()
-        if gdf is None:
-            raise HTTPException(status_code=404, detail="KKPRL data not available")
-        gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+    try:
+        # Jika cache hilang (karena Railway reset), reload otomatis
+        if not KKPRL_CACHE_FILE.exists():
+            logger.warning("Cache hilang. Memuat ulang KKPRL…")
+            gdf = load_kkprl_json()
 
-    def iterfile():
-        with open(KKPRL_CACHE_FILE, "rb") as f:
-            yield from f
+            if gdf is None:
+                raise HTTPException(status_code=500, detail="Gagal memuat KKPRL dari sumber")
 
-    return StreamingResponse(
-        iterfile(),
-        media_type="application/geo+json",
-        headers={
-            "Access-Control-Allow-Origin": "https://verdock-tools.vercel.app",
-            "Access-Control-Allow-Credentials": "true",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Allow-Methods": "*",
-        }
-    )
+            gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+            del gdf
+            gc.collect()
+
+        return FileResponse(
+            path=KKPRL_CACHE_FILE,
+            media_type="application/geo+json",
+            filename="kkprl.geojson"
+        )
+
+    except Exception as e:
+        logger.error(f"ERROR KKPRL endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
     
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
