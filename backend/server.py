@@ -140,15 +140,17 @@ async def kkprl_metadata():
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
     try:
-        # Jika cache hilang (karena Railway reset), reload otomatis
-        if not KKPRL_CACHE_FILE.exists():
-            logger.warning("Cache hilang. Memuat ulang KKPRL…")
+        # Jika file tidak ada atau file kosong → rebuild
+        if (not KKPRL_CACHE_FILE.exists()) or (KKPRL_CACHE_FILE.stat().st_size == 0):
+            logger.warning("⚠ Cache kosong, regenerasi KKPRL...")
+
             gdf = load_kkprl_json()
-
             if gdf is None:
-                raise HTTPException(status_code=500, detail="Gagal memuat KKPRL dari sumber")
+                raise HTTPException(status_code=500, detail="Gagal memuat KKPRL")
 
-            gdf.to_file(KKPRL_CACHE_FILE, driver="GeoJSON")
+            with open(KKPRL_CACHE_FILE, "w") as f:
+                f.write(gdf.to_json())  # TANPA GDAL/FIONA
+
             del gdf
             gc.collect()
 
@@ -162,7 +164,7 @@ async def get_kkprl_geojson():
         logger.error(f"ERROR KKPRL endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-    
+
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
     status_obj = StatusCheck(client_name=input.client_name)
