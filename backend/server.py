@@ -330,3 +330,13 @@ app.add_middleware(
 async def shutdown_db_client():
     if client:
         client.close()
+
+# === TAMBAHKAN INI DI PALING BAWAH ===
+if __name__ == "__main__":
+    import uvicorn
+    # Ambil port dari Environment Variable (penting untuk Fly.io), default 8080
+    port = int(os.environ.get("PORT", 8080))
+    
+    # Jalankan Uvicorn
+    # host="0.0.0.0" ARTINYA bisa diakses dari luar container (Wajib untuk Fly.io)
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
