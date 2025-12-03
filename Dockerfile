@@ -1,49 +1,49 @@
 # Stage 1: Build the Application
-# We use python:3.11 as the base for building and installing dependencies.
 FROM python:3.11 AS build
 
-# Set the working directory inside the container
 WORKDIR /usr/src/app
 
-# Install system dependencies if needed
-RUN apt-get update && apt-get install -y --no-install-recommends     build-essential     && rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements.txt if it exists (using wildcard to avoid build failure)
-COPY requirements.tx[t] ./requirements.txt
+# --- PERUBAHAN 1: Path Requirements ---
+# Mengambil requirements.txt spesifik dari folder backend
+COPY backend/requirements.txt ./requirements.txt
 
-# Install Python dependencies only if requirements.txt exists
-RUN pip install --upgrade pip &&     if [ -f requirements.txt ]; then         pip install -r requirements.txt;     fi
+# Install dependencies
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt
 
-# Copy the rest of the application source code
-COPY . .
+# --- PERUBAHAN 2: Path Source Code ---
+# Menyalin ISI folder 'backend' ke dalam working directory container
+# Ini akan menyalin server.py, folder utils, dll ke /usr/src/app/
+COPY backend/ .
 
 # Stage 2: Create the Final Production Image
-# We use python:3.11 as the runtime image with all the necessary tools.
 FROM python:3.11
 
-# Set the working directory
 WORKDIR /usr/src/app
 
-# Copy the virtual environment from the build stage
+# Copy venv dari stage build
 COPY --from=build /opt/venv /opt/venv
 
-# Copy the application code
+# Copy source code dari stage build
 COPY --from=build /usr/src/app .
 
-# Set the virtual environment as the active Python environment
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Create a non-root user to run the application
+# Setup user non-root (Keamanan)
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /usr/src/app
 USER appuser
 
-# Expose the port your app runs on
 ENV PORT=8080
 EXPOSE $PORT
 
-# Define the command to start your application
-CMD ["python", "app.py"]
+# --- PERUBAHAN 3: Command Start ---
+# Berdasarkan gambar, file utama Anda adalah 'server.py', bukan 'app.py'
+CMD ["python", "server.py"]
