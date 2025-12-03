@@ -19,9 +19,6 @@ import zipfile
 import geopandas as gpd
 import tempfile
 import shutil
-import gc
-from contextlib import asynccontextmanager
-from fastapi.responses import StreamingResponse
 
 # === Import utils ===
 from utils.coordinate_converter import dms_to_dd
@@ -45,73 +42,12 @@ mongo_url = os.environ.get("MONGO_URL")
 client = AsyncIOMotorClient(mongo_url) if mongo_url else None
 db = client[os.environ.get("DB_NAME", "test")] if client else None
 
+app = FastAPI(title="Spatio Downloader API")
+api_router = APIRouter(prefix="/api")
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === GLOBAL FILE PATH ===
-# Kita akan menyimpan GeoJSON di folder temporary OS
-KKPRL_CACHE_FILE = Path(tempfile.gettempdir()) / "kkprl_cached.geojson"
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("🚀 Server starting... Memuat data KKPRL ke RAM...")
-    try:
-        gdf = load_kkprl_json()
-        if gdf is not None:
-            logger.info(f"💾 Menyimpan {len(gdf)} fitur ke file disk: {KKPRL_CACHE_FILE}")
-            with open(KKPRL_CACHE_FILE, "w") as f:
-                f.write(gdf.to_json())  # aman, tidak pakai GDAL/Fiona
-            
-            del gdf
-            gc.collect()
-            logger.info("✅ File Cache siap! RAM telah dibersihkan.")
-            
-        else:
-            logger.warning("⚠️ Gagal memuat KKPRL.")
-            
-    except Exception as e:
-        logger.error(f"❌ Error saat startup: {e}")
-    
-    yield
-    
-    #logger.info("🛑 Server shutting down...")
-    #if client:
-        #client.close()
-
-    # Cleanup saat shutdown
-    if KKPRL_CACHE_FILE.exists():
-        try:
-            os.remove(KKPRL_CACHE_FILE)
-        except:
-            pass
-    if client:
-        client.close()
-    
-    
-# Init App dengan Lifespan
-app = FastAPI(title="Spatio Downloader API", lifespan=lifespan)
-
-# === CORS CONFIGURATION ===
-origins = [
-    "https://verdock-tools.vercel.app",  # <--- Domain Vercel Kamu
-    "http://localhost:3000",             # <--- Untuk test lokal
-]
-
-env_origins = os.environ.get("CORS_ALLOW_ORIGINS", "")
-if env_origins:
-    origins.extend([o.strip() for o in env_origins.split(",") if o.strip()])
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-api_router = APIRouter(prefix="/api")
-        
-        
 # === Models ===
 class StatusCheck(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -139,31 +75,11 @@ async def kkprl_metadata():
 
 @api_router.get("/kkprl-geojson")
 async def get_kkprl_geojson():
-    try:
-        # Jika file tidak ada atau file kosong → rebuild
-        if (not KKPRL_CACHE_FILE.exists()) or (KKPRL_CACHE_FILE.stat().st_size == 0):
-            logger.warning("⚠ Cache kosong, regenerasi KKPRL...")
-
-            gdf = load_kkprl_json()
-            if gdf is None:
-                raise HTTPException(status_code=500, detail="Gagal memuat KKPRL")
-
-            with open(KKPRL_CACHE_FILE, "w") as f:
-                f.write(gdf.to_json())  # TANPA GDAL/FIONA
-
-            del gdf
-            gc.collect()
-
-        return FileResponse(
-            path=KKPRL_CACHE_FILE,
-            media_type="application/geo+json",
-            filename="kkprl.geojson"
-        )
-
-    except Exception as e:
-        logger.error(f"ERROR KKPRL endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+    """Mengirim data KKPRL dalam format GeoJSON untuk visualisasi"""
+    gdf = load_kkprl_json()
+    if gdf is None:
+        raise HTTPException(status_code=404, detail="KKPRL data not available")
+    return json.loads(gdf.to_json())
 
 @api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate):
@@ -256,8 +172,6 @@ async def analyze_coordinates(
         # === Analisis 12 Mil Laut dan Kawasan Konservasi ===
         overlap_12mil = analyze_overlap_12mil(gdf)
         overlap_kawasan = analyze_overlap_kawasan(gdf)
-        
-        gc.collect()
 
         return {
             "success": True,
@@ -401,12 +315,16 @@ async def download_shapefile(request: DownloadShapefileRequest):
         raise HTTPException(status_code=500, detail=f"Gagal membuat shapefile: {str(e)}")
         
 
-@app.get("/")
-async def root_main():
-    return {"message": "Spatio Downloader API running"}
-
 # === Register Router ===
 app.include_router(api_router)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
