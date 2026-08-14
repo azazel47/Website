@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import axios from "axios";
 import { useDropzone } from "react-dropzone";
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
 import {
@@ -27,7 +28,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+
 import "leaflet/dist/leaflet.css";
+
+// === FIX ICON DEFAULT LEAFLET ===
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
